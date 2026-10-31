@@ -351,6 +351,9 @@
 #include "network_security.h" // Required administrator credentials, loaded after a_def_pass.h
 #include "a_def_soft.h"     // Определение параметров эффектов, переменных программы и т.п.
 #include "timeProcessor.h"  // Класс менеджмента времени (NTP, работа с временем)
+#if defined(ESP32)
+#include <freertos/queue.h>
+#endif
 
 // Keep these declarations inside the feature guard. PlatformIO's sketch
 // converter otherwise emits unguarded prototypes for disabled E1.31 functions.
@@ -1180,6 +1183,14 @@ void setup() {
 }
 
 void loop() {
+  #if defined(PANEL_PROFILE_S2_MINI)
+    // A deliberately small diagnostic command; never echo input or settings.
+    if (Serial.available() && Serial.read() == '?') {
+      Serial.printf("reset=%d uptime=%lus heap=%u minHeap=%u largest=%u\n",
+        int(esp_reset_reason()), millis() / 1000UL, ESP.getFreeHeap(),
+        ESP.getMinFreeHeap(), ESP.getMaxAllocHeap());
+    }
+  #endif
   #if defined(PANEL_DEVICE_CREDENTIALS)
     if (panelNeedsSetup) {
       if (panelSetupSaved && millis() - panelSetupSavedAt >= 2000) ESP.restart();
@@ -1187,6 +1198,8 @@ void loop() {
       return;
     }
   #endif
+
+  tickWebSocketMessages();
 
   // В случаях, когда требуется программный перезапуск контроллера - выполняется очистка вызовом FastLED.clear(true);
   // Однако, если сразу после этого вызвать ESP.restart() - FastLED не успевает отправить на матрицу сигнал очистки матрицы
@@ -1222,6 +1235,9 @@ void loop() {
   #endif
 
   process();
+  #if defined(ESP32)
+    delay(1); // Let idle and USB tasks run between animation iterations.
+  #endif
 }
 
 // -----------------------------------------

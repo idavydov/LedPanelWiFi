@@ -145,7 +145,7 @@ export class WebsocketService extends Base implements IWebsocketService, OnDestr
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
         if (this.isConnected) {
-          if (this.sentPing && !this.gotPong && (Date.now() - this.last_ping_time) > this.pingInterval / 1000) {
+          if (this.sentPing && !this.gotPong && (Date.now() - this.last_ping_time) >= this.pingInterval) {
             // Сбросить флаги
             this.sentPing = false;
             this.last_ping_time = Date.now();

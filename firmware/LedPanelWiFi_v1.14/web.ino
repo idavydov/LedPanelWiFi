@@ -39,14 +39,19 @@ void handleNotFound(AsyncWebServerRequest *request) {
 
 // --------------- WEB-SOCKET CALLBACK ----------------
 
-void handleWebSocketMessage(void *arg, uint8_t *data, size_t len, AsyncWebSocketClient *client) { 
+void processWebSocketMessage(void *arg, uint8_t *data, size_t len, AsyncWebSocketClient *client) {
   if (client == nullptr) return;
   // обрабатываем получаемые сообщения
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
 
-    doc.clear();
-    DeserializationError error = deserializeJson(doc,  (const char*)data, len);  // deserialize with deep-copy
+    // Keep received JSON independent of the document used to build replies.
+    #if ARDUINOJSON_VERSION_MAJOR == 6
+      DynamicJsonDocument incoming(MAX_BUFFER_SIZE);
+    #else
+      JsonDocument incoming;
+    #endif
+    DeserializationError error = deserializeJson(incoming, (const char*)data, len);
     if (error) {
       DEBUG(F("Ошибка в JSON: '"));
       DEBUGWR(data, len);
@@ -57,8 +62,9 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len, AsyncWebSocket
     
     if (!isQueueInitialized) InitializeQueues();
 
-    String event(doc["e"].as<const char*>());
-    String command(doc["d"].as<const char*>()); 
+    String event(incoming["e"].as<const char*>());
+    String command(incoming["d"].as<const char*>());
+
     
     if (event == "cmd" && command.length() > 0) {        
       // В одном сообщении может быть несколько команд. Каждая команда начинается с '$' и заканчивается ';'/ Пробелы между ';' и '$' НЕ допускаются.
@@ -129,6 +135,47 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len, AsyncWebSocket
   }
 }
 
+#if defined(ESP32)
+struct PendingWebMessage {
+  uint32_t client;
+  size_t length;
+  uint8_t data[MAX_BUFFER_SIZE];
+};
+QueueHandle_t pendingWebMessages = nullptr;
+#endif
+
+void handleWebSocketMessage(void *arg, uint8_t *data, size_t len, AsyncWebSocketClient *client) {
+  #if defined(ESP32)
+    AwsFrameInfo *info = static_cast<AwsFrameInfo*>(arg);
+    if (!client || !pendingWebMessages || !info || !info->final || info->index != 0 ||
+        info->len != len || info->opcode != WS_TEXT || len > MAX_BUFFER_SIZE) return;
+    PendingWebMessage *message = static_cast<PendingWebMessage*>(malloc(sizeof(PendingWebMessage)));
+    if (!message) return;
+    message->client = client->id();
+    message->length = len;
+    memcpy(message->data, data, len);
+    if (xQueueSend(pendingWebMessages, &message, 0) != pdTRUE) free(message);
+  #else
+    processWebSocketMessage(arg, data, len, client);
+  #endif
+}
+
+void tickWebSocketMessages() {
+  #if defined(ESP32)
+    PendingWebMessage *message = nullptr;
+    if (!pendingWebMessages || xQueueReceive(pendingWebMessages, &message, 0) != pdTRUE) return;
+    AsyncWebSocketClient *client = ws.client(message->client);
+    if (client) {
+      AwsFrameInfo info = {};
+      info.final = true;
+      info.len = message->length;
+      info.opcode = WS_TEXT;
+      processWebSocketMessage(&info, message->data, message->length, client);
+    }
+    free(message);
+  #endif
+}
+
 void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
   if (server == nullptr || client == nullptr) return;
   switch (type) {
@@ -153,6 +200,11 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 // ----------------------------------------------------
 
 void initWebSocket() {
+  #if defined(ESP32)
+    // Only the loop may mutate application command/state strings. Network
+    // callbacks copy bounded messages into this queue without waiting.
+    pendingWebMessages = xQueueCreate(4, sizeof(PendingWebMessage*));
+  #endif
   ws.setAuthentication(PANEL_ADMIN_USER, PANEL_ADMIN_PASSWORD);
   // Prevent another website from using the browser's cached device credentials.
   ws.setFilter([](AsyncWebServerRequest *request) {
