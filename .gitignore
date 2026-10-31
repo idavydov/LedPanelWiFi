@@ -4,3 +4,4 @@
 user_*.ini
 /*.hex
 /web/.angular
+firmware/LedPanelWiFi_v1.14/a_def_pass.h

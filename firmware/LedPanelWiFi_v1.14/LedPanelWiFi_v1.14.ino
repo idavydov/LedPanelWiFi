@@ -348,6 +348,7 @@
 // *******************************************************************************************************
 
 #include "a_def_hard.h"     // Определение параметров матрицы, пинов подключения и т.п
+#include "network_security.h" // Required administrator credentials, loaded after a_def_pass.h
 #include "a_def_soft.h"     // Определение параметров эффектов, переменных программы и т.п.
 #include "timeProcessor.h"  // Класс менеджмента времени (NTP, работа с временем)
 
@@ -935,13 +936,15 @@ void setup() {
   // Обработчики событий web-сервера
   server.serveStatic("/", LittleFS, BASE_WEB)
     .setDefaultFile("index.html")
-    .setCacheControl("public, max-age=3600, must-revalidate");  // 1 hr for caching, then revalidate based on etag/IMS headers
+    .setCacheControl("private, no-store")
+    .setAuthentication(PANEL_ADMIN_USER, PANEL_ADMIN_PASSWORD);
 
   server.onNotFound(handleNotFound);
 
   // preflight cors check
   server.on("/", HTTP_OPTIONS, [](AsyncWebServerRequest * request)
   {
+      if (!authenticateWebRequest(request)) return;
       AsyncWebServerResponse* response = request->beginResponse(204);
       response->addHeader("Access-Control-Allow-Methods", "PUT,POST,GET,OPTIONS");
       response->addHeader("Access-Control-Allow-Headers", "Accept, Content-Type, FileSize");
@@ -950,9 +953,11 @@ void setup() {
   });
 
   server.on("/", HTTP_POST, 
-    []([[maybe_unused]] AsyncWebServerRequest * request){ },
+    [](AsyncWebServerRequest * request){ authenticateWebRequest(request); },
     [](AsyncWebServerRequest * request, String filename, size_t index, uint8_t *data, size_t len, bool final) 
     {
+      // Upload callbacks run before the HTTP handler. Reject before touching files.
+      if (!request->authenticate(PANEL_ADMIN_USER, PANEL_ADMIN_PASSWORD)) return;
       static unsigned long startTimer;
       static File file;
       static bool error;      
@@ -1026,8 +1031,6 @@ void setup() {
       }
     });
 
-  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
-  
   server.begin();
   
   if (spiffs_ok) {
@@ -1041,11 +1044,7 @@ void setup() {
   #if (USE_OTA == 1)
     ArduinoOTA.setHostname(host_name.c_str());
    
-    // Заливка скетча по сетевому порту в ArduinoIDE 2.3.3 запрашивает пароль и пустой пароль не принимает.
-    // Заливка скетча по сетевому порту в ArduinoIDE 1.8.19 пароль не обязателен - можно закомментировать. Если указан - спросит
-    // Однако при наличии установленного пароля не выполняется загрузка файловой системы - пароль не спрашивает, просто говорит что ошибка аутентификации.
-    // Без установленного пароля загрузка файловой системы плагинами 'ESP32 LittleFS Data Upload' / 'ESP8266 LittleFS Data Upload' загружается успешно
-    // ArduinoOTA.setPassword((const char *)"12341234");   
+    ArduinoOTA.setPassword(PANEL_ADMIN_PASSWORD);
    
     ArduinoOTA.onStart([]() {
       String type;

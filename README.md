@@ -1,5 +1,8 @@
 ![PROJECT_PHOTO](https://github.com/vvip-68/LedPanelWiFi/blob/main/proj_img.jpg)
 # WiFi панель или гирлянда на ESP8266 / ESP32 с Web-интерфейсом
+
+**Перед сборкой:** задайте обязательный пароль администратора — см. [SECURITY.md](SECURITY.md).
+
 * [Описание проекта](#chapter-0)
 * [Схемы подключения](#chapter-2)
 * [Инструменты](#chapter-3)

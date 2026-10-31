@@ -1,5 +1,11 @@
 // --------------- WEB-SERVER CALLBACK ----------------
 
+bool authenticateWebRequest(AsyncWebServerRequest *request) {
+  if (request->authenticate(PANEL_ADMIN_USER, PANEL_ADMIN_PASSWORD)) return true;
+  request->requestAuthentication();
+  return false;
+}
+
 // Эта страница отображается, если по какой-то причине файловая система не активирована
 // например, прошивка загружена, а файлы WebServer`a не загружены или прошивка скомпилирована
 // без выделения места под файловую систему
@@ -20,6 +26,7 @@ void handleNotActive(AsyncWebServerRequest *request) {
 }
 
 void handleNotFound(AsyncWebServerRequest *request) {
+  if (!authenticateWebRequest(request)) return;
   if (!(spiffs_ok && web_ok)) {
     handleNotActive(request);
     return;  
@@ -146,6 +153,14 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 // ----------------------------------------------------
 
 void initWebSocket() {
+  ws.setAuthentication(PANEL_ADMIN_USER, PANEL_ADMIN_PASSWORD);
+  // Prevent another website from using the browser's cached device credentials.
+  ws.setFilter([](AsyncWebServerRequest *request) {
+    if (!request->hasHeader("Origin")) return true; // Non-browser clients still require authentication.
+    String origin = request->header("Origin");
+    return origin == String("http://") + request->host() ||
+           origin == String("https://") + request->host();
+  });
   ws.onEvent(onEvent);
   server.addHandler(&ws);
 }
