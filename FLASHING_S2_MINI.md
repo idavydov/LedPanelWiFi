@@ -7,7 +7,7 @@ It uses GPIO 3, WS2812-compatible 800 kHz output, and FastLED `RGB` (NeoPixel
 factory-addressed LEDs. The final slot is index 199 at `(19, 9)`.
 
 Optional peripherals, weather requests, and E1.31 are disabled. Brightness
-starts at 16/255. OTA remains enabled with administrator authentication.
+defaults to 3/255 (about 1%). OTA remains enabled with administrator authentication.
 
 ## Build
 
@@ -52,3 +52,23 @@ saves them on the device and restarts; reconnect to home Wi-Fi and open
 Later, adjust the canvas and index map to match the LEDs on the glass. Retain
 factory slot numbers and the 200-slot output; removing an LED does not renumber
 the others.
+
+## IR remote
+
+Connect VS1838B VCC to 3V3, GND to GND, and OUT to GPIO 5. In the IR remote tab,
+click Add code for an action and press the remote button. Up to 32 codes are
+saved on the board; several codes can share an action. The live log shows
+protocols, codes, repeats, matches, and raw timings without a serial console.
+The same tab shows reset reason and memory readings. Use Set 1% brightness to
+lower an existing saved brightness setting without resetting the device.
+
+If the browser cannot stay connected, run `pio device monitor -b 115200`
+on the application USB port and send `?` (no Enter required). It prints only
+reset reason, uptime and heap sizes. Reset codes: 4 = software crash,
+5 = interrupt watchdog, 6 = task watchdog, 7 = other watchdog, 9 = brownout,
+1 = power on, 3 = software restart. Check after an unexpected reset;
+the uploader itself can cause a watchdog restart. Close the monitor before uploading.
+
+After changing the UI, run `npm ci --legacy-peer-deps` and `npm run build` in
+`web/`, then `python3 tools/package_web.py` from the repository root. Build and
+upload both firmware and filesystem for the IR feature; no erase is needed.

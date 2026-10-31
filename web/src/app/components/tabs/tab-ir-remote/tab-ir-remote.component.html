@@ -1,0 +1,85 @@
+<div class="tab-ir-remote">
+    <fieldset class="app-fieldset ir-panel">
+      <legend>IR remote</legend>
+      <p>Choose an action, click Add code, then press a remote button. Add more codes to use other buttons or remotes for the same action.</p>
+      @if (socketService.lastClose; as close) {
+        <p class="ir-hint">Last connection close: {{ close.code }} · {{ close.reason || 'No reason supplied by the browser' }}</p>
+      }
+      @if (irState; as receiver) {
+        <div class="ir-device-status">
+          <span>Last reset: <strong>{{ receiver.resetReason || 'Not reported' }}</strong></span>
+          <span>Uptime: {{ receiver.uptime == null ? '—' : receiver.uptime + ' s' }}</span>
+          <span>Free memory: {{ formatBytes(receiver.heap) }} (minimum {{ formatBytes(receiver.minHeap) }})</span>
+          <span>Largest block: {{ formatBytes(receiver.largestHeapBlock) }}</span>
+          <span>Wi-Fi: {{ receiver.rssi ? receiver.rssi + ' dBm' : 'AP / not reported' }}</span>
+          <span>Debug frames skipped: {{ receiver.logSkipped ?? 0 }}</span>
+        </div>
+        <button type="button" (click)="setDebugBrightness()" [disabled]="!socketService.isConnected">Set 1% brightness</button>
+        <div class="ir-status">
+          <span>GPIO {{ receiver.pin }} · {{ receiver.level ? 'HIGH (idle)' : 'LOW' }}</span>
+          <span>{{ receiver.bindings.length }} / {{ receiver.capacity }} saved codes</span>
+        </div>
+        <p class="ir-notice" role="status">
+          @if (receiver.learning) {
+            Listening for <strong>{{ irActionLabel(receiver.learning) }}</strong> — press once within 15 seconds.
+            <button type="button" (click)="cancelIRLearning()">Cancel</button>
+          } @else {
+            {{ receiver.notice || 'Ready. Saved codes work without the browser.' }}
+          }
+        </p>
+        <div class="ir-mappings">
+          @for (action of irActions; track action.id) {
+            <div class="ir-mapping">
+              <div class="ir-action">
+                <strong>{{ action.label }}</strong>
+                <button type="button" (click)="learnIR(action.id)"
+                        [disabled]="!socketService.isConnected || !!receiver.learning || receiver.bindings.length >= receiver.capacity">Add code</button>
+              </div>
+              <div class="ir-codes">
+                @for (binding of irBindingsFor(action.id); track binding.id) {
+                  <span class="ir-code">
+                    <code>{{ binding.protocol }} / {{ binding.bits }}b / {{ binding.code }}</code>
+                    <button type="button" (click)="removeIR(binding)" [disabled]="!socketService.isConnected || !!receiver.learning"
+                            [attr.aria-label]="'Remove ' + action.label + ' code ' + binding.code">×</button>
+                  </span>
+                } @empty {
+                  <span class="ir-empty">No codes yet</span>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <p role="status">{{ socketService.isConnected ? 'Waiting for IR receiver status. This needs the IR-enabled firmware.' : 'Connect to the panel to configure the remote.' }}</p>
+      }
+      @if (irError) { <p role="alert">{{ irError }}</p> }
+
+      <div class="ir-debug-heading">
+        <h3>Live receiver log</h3>
+        <label><input type="checkbox" [(ngModel)]="irListening" (ngModelChange)="refreshIR()"> Listen</label>
+        <button type="button" (click)="refreshIR()" [disabled]="!socketService.isConnected">Refresh</button>
+        <button type="button" (click)="irFrames = []">Clear log</button>
+      </div>
+      <p class="ir-hint">Last 20 captures, limited to 10 per second to keep the connection responsive. Unknown protocols are shown but cannot be learned. Holding directions uses the button-speed setting; Start/Pause and game selection fire once while held.</p>
+      <ol class="ir-log" aria-label="Recent IR captures">
+        @for (frame of irFrames; track frame.sequence) {
+          <li>
+            <div><strong>{{ frame.protocol }}</strong> · {{ frame.bits }} bits · <code>{{ frame.code }}</code></div>
+            <div class="ir-frame-meta">
+              #{{ frame.sequence }} · {{ frame.uptime }} ms · action: {{ irActionLabel(frame.action) }}
+              @if (frame.repeat || frame.held) { <strong> · REPEAT</strong> }
+              @if (frame.overflow) { <strong> · OVERFLOW</strong> }
+            </div>
+            <div>{{ frame.outcome }}</div>
+            <details>
+              <summary>Raw timings ({{ frame.rawLength }} entries)</summary>
+              <code>{{ frame.pulses.join(', ') }} µs</code>
+              @if (frame.key) { <div>Match key: <code>{{ frame.key }}</code></div> }
+            </details>
+          </li>
+        } @empty {
+          <li class="ir-empty">Point the remote at the receiver and press a button.</li>
+        }
+      </ol>
+    </fieldset>
+</div>

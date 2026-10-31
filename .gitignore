@@ -4,4 +4,7 @@
 user_*.ini
 /*.hex
 /web/.angular
+/web/node_modules/
+/web/dist/
+/tests/__pycache__/
 firmware/LedPanelWiFi_v1.14/a_def_pass.h

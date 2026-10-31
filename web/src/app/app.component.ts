@@ -12,13 +12,14 @@ import { ManagementService} from './services/management/management.service';
 import { WebsocketService } from './services/websocket/websocket.service';
 import { TabSetupComponent } from './components/tabs/tab-setup/tab-setup.component';
 import { TabGamesComponent } from './components/tabs/tab-games/tab-games.component';
+import { TabIrRemoteComponent } from './components/tabs/tab-ir-remote/tab-ir-remote.component';
 import { TabDrawComponent } from './components/tabs/tab-draw/tab-draw.component';
 import { TabModesComponent } from './components/tabs/tab-modes/tab-modes.component';
 import { TabAlarmComponent } from './components/tabs/tab-alarm/tab-alarm.component';
 import { TabClockComponent } from './components/tabs/tab-clock/tab-clock.component';
 import { TabTextsPanelComponent } from './components/tabs/tab-texts-panel/tab-texts-panel.component';
 import { TabEffectsComponent } from './components/tabs/tab-effects/tab-effects.component';
-import { MatTabsModule } from '@angular/material/tabs';
+import { MatTabChangeEvent, MatTabsModule } from '@angular/material/tabs';
 import { MatIconModule } from '@angular/material/icon';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatTooltipDefaultOptions, MatTooltipModule} from '@angular/material/tooltip';
@@ -37,7 +38,7 @@ export const customTooltipDefaults: MatTooltipDefaultOptions = {
     standalone: true,
     imports: [
       MatToolbarModule, MatIconModule, MatTooltipModule, MatSlideToggleModule, MatTabsModule,
-      TabEffectsComponent, TabTextsPanelComponent, TabClockComponent, TabAlarmComponent, TabModesComponent, TabDrawComponent, TabGamesComponent, TabSetupComponent
+      TabEffectsComponent, TabTextsPanelComponent, TabClockComponent, TabAlarmComponent, TabModesComponent, TabDrawComponent, TabGamesComponent, TabSetupComponent, TabIrRemoteComponent
     ]
 })
 export class AppComponent extends Base implements OnInit, OnDestroy {
@@ -61,6 +62,11 @@ export class AppComponent extends Base implements OnInit, OnDestroy {
   }
 
   public selectedTab: number = 0;
+  settingsSelected = false;
+
+  tabChanged(event: MatTabChangeEvent) {
+    this.settingsSelected = event.tab.textLabel === 'settings';
+  }
 
   private _darkTheme: boolean = false;
 

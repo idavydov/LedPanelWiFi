@@ -354,6 +354,14 @@
 #if defined(ESP32)
 #include <freertos/queue.h>
 #endif
+#if defined(IR_RECEIVE_PIN)
+#include <IRrecv.h>
+#include <IRutils.h>
+#include <Preferences.h>
+#include "ir_remote_model.h"
+// Keep the sketch converter from declaring this when IR support is disabled.
+bool irPersistBindings(const IRBindings& updated);
+#endif
 
 // Keep these declarations inside the feature guard. PlatformIO's sketch
 // converter otherwise emits unguarded prototypes for disabled E1.31 functions.
@@ -1180,6 +1188,9 @@ void setup() {
   autoplayTimer = millis();
   
   setIdleTimer();
+  #if defined(IR_RECEIVE_PIN)
+    initializeIRRemote();
+  #endif
 }
 
 void loop() {
@@ -1199,6 +1210,9 @@ void loop() {
     }
   #endif
 
+  #if defined(IR_RECEIVE_PIN)
+    tickIRRemote();
+  #endif
   tickWebSocketMessages();
 
   // В случаях, когда требуется программный перезапуск контроллера - выполняется очистка вызовом FastLED.clear(true);

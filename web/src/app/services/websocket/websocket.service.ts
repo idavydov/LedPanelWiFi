@@ -78,6 +78,7 @@ export class WebsocketService extends Base implements IWebsocketService, OnDestr
   public firstConnect = true;
   public isConnected = false;
   public isConnected$ = new BehaviorSubject<boolean>(false);
+  public lastClose: {code: number; reason: string} | null = null;
 
   // статус соединения
   public status$: Observable<boolean>;
@@ -91,6 +92,7 @@ export class WebsocketService extends Base implements IWebsocketService, OnDestr
       url: this.url,
       closeObserver: {
         next: (event: CloseEvent) => {
+          this.lastClose = {code: event.code, reason: event.reason};
           console.log('WebSocket disconnected!');
           this.websocket$ = null;
           this.connection$?.next(false);
@@ -246,7 +248,7 @@ export class WebsocketService extends Base implements IWebsocketService, OnDestr
   * */
   public send(event: string, data: any = {}): void {
     if (this.isConnected) {
-      if (event === WS.SEND.COMMAND) {
+      if (event === WS.SEND.COMMAND || event === 'ir') {
         this.websocket$?.next({e: event, d: data});
       }
     }

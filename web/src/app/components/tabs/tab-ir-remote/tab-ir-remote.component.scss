@@ -1,0 +1,33 @@
+:host { display: block; width: 100%; height: calc(100dvh - 160px); }
+.tab-ir-remote { height: 100%; overflow-y: auto; padding: 8px; box-sizing: border-box; }
+:host .ir-panel {
+  box-sizing: border-box;
+  width: min(680px, 100%);
+  margin: 0 auto;
+  min-width: 0;
+  align-self: flex-start;
+  text-align: left;
+
+  p { line-height: 1.5; }
+  button { cursor: pointer; padding: 5px 9px; min-height: 40px; }
+  button:disabled { cursor: default; }
+  code { overflow-wrap: anywhere; }
+  .ir-status, .ir-action, .ir-debug-heading {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: space-between;
+  }
+  .ir-notice { min-height: 2em; }
+  .ir-device-status { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 6px; margin-bottom: 12px; font-size: .9em; }
+  .ir-mapping { border-top: 1px solid #8885; padding: 10px 0; }
+  .ir-codes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+  .ir-code { border: 1px solid #8887; border-radius: 4px; padding: 4px 6px; }
+  .ir-code button { margin-left: 6px; }
+  .ir-empty, .ir-hint, .ir-frame-meta { opacity: .7; font-size: .9em; }
+  .ir-log { padding: 0; list-style: none; max-height: 360px; overflow-y: auto; }
+  .ir-log li { border-top: 1px solid #8885; padding: 8px 0; line-height: 1.5; }
+  details { margin-top: 5px; }
+  summary { cursor: pointer; }
+}

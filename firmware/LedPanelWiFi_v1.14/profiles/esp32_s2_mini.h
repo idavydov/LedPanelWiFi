@@ -99,7 +99,7 @@
 #define DEBUG_SERIAL 0
 
 #undef BRIGHTNESS
-#define BRIGHTNESS 16
+#define BRIGHTNESS 3
 
 #undef DEFAULT_IP
 #define DEFAULT_IP {0, 0, 0, 0}
@@ -112,5 +112,6 @@
 
 #define PANEL_DEVICE_CREDENTIALS 1
 #define DEFAULT_AP_PASS PSTR("")
+#define IR_RECEIVE_PIN 5
 
 static_assert(WIDTH * HEIGHT == 200, "This profile must transmit 200 LED slots.");

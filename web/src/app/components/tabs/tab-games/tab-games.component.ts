@@ -34,7 +34,6 @@ export class TabGamesComponent extends Base implements OnInit, OnDestroy {
   public speed: number = -1;
   public repeat: number = 0;
   public invert_left_right: boolean = false;
-
   private brightChanged$ = new BehaviorSubject(this.bright);
   private speedChanged$ = new BehaviorSubject(this.speed);
   private repeatChanged$ = new BehaviorSubject(this.repeat);
@@ -52,7 +51,6 @@ export class TabGamesComponent extends Base implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-
     this.socketService.isConnected$
       .pipe(takeUntil(this.destroy$), distinctUntilChanged(), debounceTime(1000))
       .subscribe((isConnected: boolean) => {
@@ -115,7 +113,7 @@ export class TabGamesComponent extends Base implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
         const time = Date.now();
-        if (time - this.last_time > this.repeat) {
+        if (time - this.last_time >= this.repeat) {
           this.repeatAction();
         }
       });
@@ -232,16 +230,51 @@ export class TabGamesComponent extends Base implements OnInit, OnDestroy {
   }
 
   btnPress(value: number) {
+    if (this.isDisabled()) return;
     this.key_code = value;
-    this.last_time = Date.now() - 2000;
+    this.repeatAction();
+  }
+
+  btnPointerDown(event: PointerEvent, value: number) {
+    if (event.button !== 0 || this.isDisabled()) return;
+    event.preventDefault();
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    this.btnPress(value);
+  }
+
+  controlKeyDown(event: KeyboardEvent, value: number) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.repeat) this.btnPress(value);
+  }
+
+  controlKeyUp(event: KeyboardEvent) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.btnRelease();
   }
 
   btnRelease() {
     this.key_code = 0;
   }
 
+  @HostListener('window:blur')
+  @HostListener('document:visibilitychange')
+  releaseInput() { this.btnRelease(); }
+
+  override ngOnDestroy() {
+    this.btnRelease();
+    super.ngOnDestroy();
+  }
+
   @HostListener('window:keydown', ['$event'])
   onKeyDown(event: KeyboardEvent): void {
+    if (event.repeat) return;
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
+    if (event.target instanceof HTMLButtonElement && (event.key === 'Enter' || event.key === ' ')) return;
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) event.preventDefault();
     switch (event.key) {
       case 'ArrowLeft':
         this.btnPress(4);

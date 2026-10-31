@@ -42,7 +42,7 @@
 
   @if (!socketService.firstConnect) {
     <div class="page-content" role="main">
-      <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="center" [(selectedIndex)]="selectedTab">
+      <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="center" [(selectedIndex)]="selectedTab" (selectedTabChange)="tabChanged($event)">
         <mat-tab>
           <ng-template mat-tab-label>
             <mat-icon class="tab-icon" matTooltip="{{L.$('Эффекты ')}}">blur_on</mat-icon>
@@ -145,7 +145,17 @@
           </mat-tab>
         }
 
-        <mat-tab>
+        <mat-tab label="ir">
+          <ng-template mat-tab-label>
+            <mat-icon class="tab-icon">settings_remote</mat-icon>
+            <span>IR remote</span>
+          </ng-template>
+          <ng-template matTabContent>
+            <app-tab-ir-remote></app-tab-ir-remote>
+          </ng-template>
+        </mat-tab>
+
+        <mat-tab label="settings">
           <ng-template mat-tab-label>
             <mat-icon class="tab-icon" matTooltip="{{L.$('Настройки ')}}">settings</mat-icon>
             <span>{{ L.$('Настройки ') }}</span>
@@ -163,10 +173,10 @@
   }
 
   <div class="footer">
-    @if (managementService.state.power && commonService.error.length === 0 && commonService.info.length === 0 && socketService.isConnected && this.selectedTab != 7) {
+    @if (managementService.state.power && commonService.error.length === 0 && commonService.info.length === 0 && socketService.isConnected && !settingsSelected) {
       <div class="version" (click)="showEffectInformation(2000)">{{managementService.state.version}}</div>
     }
-    @if (managementService.state.power && commonService.error.length === 0 && commonService.info.length === 0 && socketService.isConnected && this.selectedTab == 7) {
+    @if (managementService.state.power && commonService.error.length === 0 && commonService.info.length === 0 && socketService.isConnected && settingsSelected) {
       <div class="stats">{{getUptimeAndMemoryUsage()}}</div>
     }
     @if (managementService.state.power && commonService.error.length === 0 && commonService.info.length === 0 && !socketService.isConnected) {

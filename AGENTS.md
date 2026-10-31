@@ -13,7 +13,7 @@ For generic builds, configure local device headers using the templates in `publi
 
 - `pio run -e esp32` or `pio run -e esp8266`: build firmware for the selected PlatformIO environment.
 - `pio run -e esp32 -t buildfs`: build the LittleFS image from the configured data directory.
-- From `web/`, run `npm ci`, then `npm run build`: install locked dependencies and produce `dist/browser/`.
+- From `web/`, run `npm ci --legacy-peer-deps`, then `npm run build`: install locked dependencies and produce `dist/browser/`.
 - From `web/`, run `npm start`: launch Angular development mode. Authenticated device WebSockets require the device's own origin; development hosting alone does not verify integration.
 - `python3 -m unittest discover -s tests -v`: run host regressions; Python 3 and `g++` are required.
 

@@ -28,10 +28,10 @@
       }
 
       <div class="games">
-        <div class="game-card" [ngClass]="{'active': !isDisabled() && this.managementService.state.isGameMaze()}" (click)="switchToMaze()">{{ L.$('Лабиринт') }}</div>
-        <div class="game-card" [ngClass]="{'active': !isDisabled() && this.managementService.state.isGameSnake()}" (click)="switchToSnake()">{{ L.$('Змейка') }}</div>
-        <div class="game-card" [ngClass]="{'active': !isDisabled() && this.managementService.state.isGameTetris()}" (click)="switchToTetris()">{{ L.$('Тетрис') }}</div>
-        <div class="game-card" [ngClass]="{'active': !isDisabled() && this.managementService.state.isGameArkanoid()}" (click)="switchToArkanoid()">{{ L.$('Арканоид') }}</div>
+        <button type="button" [disabled]="!socketService.isConnected" class="game-card" [ngClass]="{'active': !isDisabled() && this.managementService.state.isGameMaze()}" (click)="switchToMaze()">{{ L.$('Лабиринт') }}</button>
+        <button type="button" [disabled]="!socketService.isConnected" class="game-card" [ngClass]="{'active': !isDisabled() && this.managementService.state.isGameSnake()}" (click)="switchToSnake()">{{ L.$('Змейка') }}</button>
+        <button type="button" [disabled]="!socketService.isConnected" class="game-card" [ngClass]="{'active': !isDisabled() && this.managementService.state.isGameTetris()}" (click)="switchToTetris()">{{ L.$('Тетрис') }}</button>
+        <button type="button" [disabled]="!socketService.isConnected" class="game-card" [ngClass]="{'active': !isDisabled() && this.managementService.state.isGameArkanoid()}" (click)="switchToArkanoid()">{{ L.$('Арканоид') }}</button>
       </div>
 
       @if (!this.managementService.state.isGameRunning()) {
@@ -41,26 +41,37 @@
         <div class="message">&nbsp;</div>
       }
 
-      <div class="game-buttons">
-        <div class="cell c1"></div>
-        <div class="cell c2">
-          <mat-icon [ngClass]="{'disabled': isDisabled()}" (mousedown)="btnPress(1)" (mouseup)="btnRelease()" (touchstart)="btnPress(1)" (touchend)="btnRelease()">forward</mat-icon>
-        </div>
-        <div class="cell c3"></div>
-        <div class="cell c4">
-          <mat-icon [ngClass]="{'disabled': isDisabled()}" (mousedown)="btnPress(4)" (mouseup)="btnRelease()" (touchstart)="btnPress(4)" (touchend)="btnRelease()">forward</mat-icon>
-        </div>
-        <div class="cell c5">
-          <mat-icon [ngClass]="{'disabled': isDisabled()}" (mousedown)="btnPress(5)" (mouseup)="btnRelease()" (touchstart)="btnPress(5)" (touchend)="btnRelease()">add_circle_outline</mat-icon>
-        </div>
-        <div class="cell c6">
-          <mat-icon [ngClass]="{'disabled': isDisabled()}" (mousedown)="btnPress(2)" (mouseup)="btnRelease()" (touchstart)="btnPress(2)" (touchend)="btnRelease()">forward</mat-icon>
-        </div>
-        <div class="cell c7"></div>
-        <div class="cell c8">
-          <mat-icon [ngClass]="{'disabled': isDisabled()}" (mousedown)="btnPress(3)" (mouseup)="btnRelease()" (touchstart)="btnPress(3)" (touchend)="btnRelease()">forward</mat-icon>
-        </div>
-        <div class="cell c9"></div>
+      <div class="game-buttons" role="group" aria-label="Game controls">
+        <button type="button" class="control-up" aria-label="Up" [disabled]="isDisabled()"
+                (pointerdown)="btnPointerDown($event, 1)" (pointerup)="btnRelease()"
+                (pointercancel)="btnRelease()" (lostpointercapture)="btnRelease()"
+                (keydown)="controlKeyDown($event, 1)" (keyup)="controlKeyUp($event)">
+          <mat-icon>arrow_upward</mat-icon>
+        </button>
+        <button type="button" class="control-left" aria-label="Left" [disabled]="isDisabled()"
+                (pointerdown)="btnPointerDown($event, 4)" (pointerup)="btnRelease()"
+                (pointercancel)="btnRelease()" (lostpointercapture)="btnRelease()"
+                (keydown)="controlKeyDown($event, 4)" (keyup)="controlKeyUp($event)">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+        <button type="button" class="control-center" aria-label="Start" [disabled]="isDisabled()"
+                (pointerdown)="btnPointerDown($event, 5)" (pointerup)="btnRelease()"
+                (pointercancel)="btnRelease()" (lostpointercapture)="btnRelease()"
+                (keydown)="controlKeyDown($event, 5)" (keyup)="controlKeyUp($event)">
+          <mat-icon>play_arrow</mat-icon>
+        </button>
+        <button type="button" class="control-right" aria-label="Right" [disabled]="isDisabled()"
+                (pointerdown)="btnPointerDown($event, 2)" (pointerup)="btnRelease()"
+                (pointercancel)="btnRelease()" (lostpointercapture)="btnRelease()"
+                (keydown)="controlKeyDown($event, 2)" (keyup)="controlKeyUp($event)">
+          <mat-icon>arrow_forward</mat-icon>
+        </button>
+        <button type="button" class="control-down" aria-label="Down" [disabled]="isDisabled()"
+                (pointerdown)="btnPointerDown($event, 3)" (pointerup)="btnRelease()"
+                (pointercancel)="btnRelease()" (lostpointercapture)="btnRelease()"
+                (keydown)="controlKeyDown($event, 3)" (keyup)="controlKeyUp($event)">
+          <mat-icon>arrow_downward</mat-icon>
+        </button>
       </div>
 
       <div class="field-container slider">
@@ -81,5 +92,6 @@
       </div>
 
     </fieldset>
+
   </div>
 </div>

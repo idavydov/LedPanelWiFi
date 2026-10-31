@@ -65,6 +65,12 @@ void processWebSocketMessage(void *arg, uint8_t *data, size_t len, AsyncWebSocke
     String event(incoming["e"].as<const char*>());
     String command(incoming["d"].as<const char*>());
 
+    #if defined(IR_RECEIVE_PIN)
+      if (event == "ir") {
+        enqueueIRCommand(command, client->id());
+        return;
+      }
+    #endif
     
     if (event == "cmd" && command.length() > 0) {        
       // В одном сообщении может быть несколько команд. Каждая команда начинается с '$' и заканчивается ';'/ Пробелы между ';' и '$' НЕ допускаются.
