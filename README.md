@@ -1,7 +1,7 @@
 ![PROJECT_PHOTO](https://github.com/vvip-68/LedPanelWiFi/blob/main/proj_img.jpg)
 # WiFi панель или гирлянда на ESP8266 / ESP32 с Web-интерфейсом
 
-**Перед сборкой:** задайте обязательный пароль администратора — см. [SECURITY.md](SECURITY.md).
+**ESP32-S2 Mini:** on first boot, join the open `PanelAP` network and open `http://192.168.4.1` to choose an administrator password and enter your home Wi-Fi details. Credentials stay on the device; no password header or USB console is needed. After it connects, log in as `admin` at `http://GlassPanel.local`; the setup AP closes. See [build and flash commands](FLASHING_S2_MINI.md).
 
 * [Описание проекта](#chapter-0)
 * [Схемы подключения](#chapter-2)
