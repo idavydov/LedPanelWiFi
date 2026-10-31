@@ -719,6 +719,9 @@ void loadWiring() {
 
 // Инициализация параметров приложения, описывающих типы оборудования и пины подключения
 void initializeWiring() { 
+  // Settings encode RGB orders as 0=GRB, 1=RGB, 2=RBG, 3=GBR, 4=BRG, 5=BGR.
+  const int8_t defaultLedRGB = COLOR_ORDER == RGB ? 1 : COLOR_ORDER == RBG ? 2 :
+      COLOR_ORDER == GBR ? 3 : COLOR_ORDER == BRG ? 4 : COLOR_ORDER == BGR ? 5 : 0;
   
   // Инициализировать начальные значения "переферийных" устройств и пины подключения из define определенных пользователем для оборудования 
   putDebugSerialEnable(DEBUG_SERIAL == 1);
@@ -734,25 +737,25 @@ void initializeWiring() {
   putLedLinePin(1, LED_PIN);                        // Вывод назначен на LED_PIN
   putLedLineStartIndex(1, 0);                       // Начало вывода на ленту - с 0 индекса светодиодов в массиве  
   putLedLineLength(1, NUM_LEDS);                    // реальное значение будет инициализировано в setup() после того как из настроек будет считан текущий размер матрицы
-  putLedLineRGB(1, 0);                              // цветовой порядок
+  putLedLineRGB(1, defaultLedRGB);                 // цветовой порядок
   
   putLedLineUsage(2, false);                        // Линия 2 - отключена
   putLedLinePin(2, -1);                             // Вывод не назначен ни на один из пинов
   putLedLineStartIndex(2, 0);                       // Индекс начала вывода - N/A   
   putLedLineLength(2, NUM_LEDS);                    // Длина сегмента - N/A
-  putLedLineRGB(2, 0);                              // цветовой порядок
+  putLedLineRGB(2, defaultLedRGB);                 // цветовой порядок
  
   putLedLineUsage(3, false);                        // Линия 3 - отключена
   putLedLinePin(3, -1);                             // Вывод не назначен ни на один из пинов
   putLedLineStartIndex(3, 0);                       // Индекс начала вывода - N/A   
   putLedLineLength(3, NUM_LEDS);                    // Длина сегмента - N/A
-  putLedLineRGB(3, 0);                              // цветовой порядок
+  putLedLineRGB(3, defaultLedRGB);                 // цветовой порядок
   
   putLedLineUsage(4, false);                        // Линия 4 - отключена
   putLedLinePin(4, -1);                             // Вывод не назначен ни на один из пинов
   putLedLineStartIndex(4, 0);                       // Индекс начала вывода - N/A   
   putLedLineLength(4, NUM_LEDS);                    // Длина сегмента - N/A
-  putLedLineRGB(4, 0);                              // цветовой порядок
+  putLedLineRGB(4, defaultLedRGB);                 // цветовой порядок
 
   #if (USE_BUTTON == 1)
     putButtonPin(PIN_BTN);                          // Пин подключения кнопки
