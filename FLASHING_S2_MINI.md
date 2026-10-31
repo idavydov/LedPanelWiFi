@@ -23,18 +23,18 @@ into ignored `.pio/vendor/s2_mini/`. PlatformIO pins Arduino 2.0.17 through
 
 ## Flash when ready
 
-This profile uses manual ROM bootloader entry. Close any serial monitor, hold
-BOOT, tap and release RESET, then release BOOT. Identify the port after this
-sequence; it can differ from the running firmware's port. Substitute it below:
+Close any serial monitor and use the running panel's USB serial port below.
+The uploader requests bootloader mode over USB, follows the board if its port
+changes, and restarts the application afterward. Normally no buttons are needed.
 
 ```sh
 pio run -e esp32_s2_mini -t upload --upload-port /dev/ttyACM0
 pio run -e esp32_s2_mini -t uploadfs --upload-port /dev/ttyACM0
 ```
 
-The uploader leaves the board in download mode, so firmware and filesystem can
-be uploaded consecutively. Tap RESET after both finish to start the application.
-For a later upload, repeat BOOT + RESET first.
+Wait for the panel's USB application port to return before the second command;
+its name can change. If the installed firmware is unresponsive or no USB port
+appears, hold BOOT, tap RESET, release BOOT, and upload to that recovery port.
 
 Upload both on the first flash. Later firmware-only changes need just `upload`;
 run `uploadfs` again only when the web assets change, since it replaces existing

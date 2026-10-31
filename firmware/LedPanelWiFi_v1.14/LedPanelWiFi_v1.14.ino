@@ -380,6 +380,9 @@ void set_SyncDataMode(eSyncModes value);
 #endif
 
 void setup() {
+  #if defined(PANEL_PROFILE_S2_MINI)
+    Serial.enableReboot(true); // Keep USB software entry to the ROM bootloader enabled.
+  #endif
   #if defined(ESP8266)
     ESP.wdtEnable(WDTO_8S);
     WiFi.setSleepMode(WIFI_NONE_SLEEP);
