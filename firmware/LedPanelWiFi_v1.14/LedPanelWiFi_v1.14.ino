@@ -352,6 +352,22 @@
 #include "a_def_soft.h"     // Определение параметров эффектов, переменных программы и т.п.
 #include "timeProcessor.h"  // Класс менеджмента времени (NTP, работа с временем)
 
+// Keep these declarations inside the feature guard. PlatformIO's sketch
+// converter otherwise emits unguarded prototypes for disabled E1.31 functions.
+#if (USE_E131 == 1)
+void printE131packet(e131_packet_t *packet);
+bool drawE131frame(e131_packet_t *packet, eSyncModes syncMode);
+bool isCommandPacket(e131_packet_t *packet);
+void processCommandPacket(e131_packet_t *packet);
+void makeCommandPacket(uint8_t cmd, e131_packet_t *packet);
+eWorkModes getSyncWorkMode();
+void putSyncWorkMode(eWorkModes value);
+eSyncModes getSyncDataMode();
+void putSyncDataMode(eSyncModes value);
+void set_SyncWorkMode(eWorkModes value);
+void set_SyncDataMode(eSyncModes value);
+#endif
+
 void setup() {
   #if defined(ESP8266)
     ESP.wdtEnable(WDTO_8S);
@@ -371,10 +387,22 @@ void setup() {
 
   initializeEEPROM();
 
+  #if defined(PANEL_DEVICE_CREDENTIALS)
+    Serial.begin(115200);
+    delay(300);
+  #else
   if (vDEBUG_SERIAL) {
     Serial.begin(115200);
     delay(300);
   }
+  #endif
+
+  #if defined(PANEL_DEVICE_CREDENTIALS)
+    if (!initializePanelSecurity()) {
+      Serial.println("Security initialization failed; network services are disabled.");
+      while (true) delay(1000);
+    }
+  #endif
 
   bool isWireInitialized = getWiringInitialized();
   if (!(isWireInitialized && isEEPROMInitialized)) {
@@ -933,6 +961,14 @@ void setup() {
   // Подключение к сети
   connectToNetwork();
 
+  #if defined(PANEL_DEVICE_CREDENTIALS)
+    if (panelNeedsSetup) {
+      initPanelSetup();
+      server.begin();
+      return;
+    }
+  #endif
+
   // Обработчики событий web-сервера
   server.serveStatic("/", LittleFS, BASE_WEB)
     .setDefaultFile("index.html")
@@ -1144,6 +1180,13 @@ void setup() {
 }
 
 void loop() {
+  #if defined(PANEL_DEVICE_CREDENTIALS)
+    if (panelNeedsSetup) {
+      if (panelSetupSaved && millis() - panelSetupSavedAt >= 2000) ESP.restart();
+      delay(1);
+      return;
+    }
+  #endif
 
   // В случаях, когда требуется программный перезапуск контроллера - выполняется очистка вызовом FastLED.clear(true);
   // Однако, если сразу после этого вызвать ESP.restart() - FastLED не успевает отправить на матрицу сигнал очистки матрицы
@@ -1326,7 +1369,11 @@ void startSoftAP() {
   ap_connected = false;
 
   String apName(getSoftAPName());
+  #if defined(PANEL_DEVICE_CREDENTIALS)
+  String apPass(panelNeedsSetup ? String() : getSoftAPPass());
+  #else
   String apPass(getSoftAPPass());
+  #endif
 
   DEBUG(F("Создание точки доступа "));
   DEBUGLN(apName);
@@ -1377,6 +1424,13 @@ void startSoftAP() {
 }
 
 void connectToNetwork() {
+  #if defined(PANEL_DEVICE_CREDENTIALS)
+    if (panelNeedsSetup) {
+      WiFi.mode(WIFI_AP);
+      startSoftAP();
+      return;
+    }
+  #endif
   // Подключиться к WiFi сети, ожидать подключения 180 сек пока, например, после отключения электричества роутер загрузится и поднимет сеть
   startWiFi(180000);
 

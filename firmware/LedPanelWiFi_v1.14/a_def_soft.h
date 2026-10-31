@@ -42,7 +42,9 @@
 
 #define DEFAULT_NTP_SERVER PSTR("ntp0.ntp-servers.net") // NTP сервер по умолчанию "time.nist.gov"
 #define DEFAULT_AP_NAME    PSTR("PanelAP")              // Имя точки доступа по умолчанию 
+#ifndef DEFAULT_AP_PASS
 #define DEFAULT_AP_PASS    PSTR("12341234")             // Пароль точки доступа по умолчанию
+#endif
 
 // ------------ Настройки региона погоды и часового пояса
 
