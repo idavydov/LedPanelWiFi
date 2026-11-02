@@ -8,6 +8,51 @@ from test_network_security import function
 
 
 class AsyncTCPQueueTests(unittest.TestCase):
+    def test_s2_long_event_burst_yields_to_idle_without_disabling_watchdog(self):
+        root = pathlib.Path(__file__).resolve().parents[1]
+        upstream = (root / 'libraries/AsyncTCP/src/AsyncTCP.cpp').read_text()
+        source = r'''
+#include <cassert>
+#include <cstdint>
+#include <cstddef>
+#define CONFIG_ASYNC_TCP_COOPERATIVE_MS 10
+#define CONFIG_ASYNC_TCP_USE_WDT 1
+#define ASYNC_TCP_MAX_TASK_SLEEP 1000
+#define ESP_OK 0
+#define pdTRUE 1
+#define async_tcp_log_d(...) ((void)0)
+#define async_tcp_log_w(...) ((void)0)
+#define async_tcp_log_elapsed(tag, statement) statement
+uint32_t now=0, sinceYield=0;
+int yields=0, feeds=0, events=0;
+uint32_t millis() { return now; }
+void vTaskDelay(int ticks) { assert(ticks==1 && now-sinceYield<=12); ++yields; ++now; sinceYield=now; }
+int esp_task_wdt_add(void*) { return ESP_OK; }
+void esp_task_wdt_delete(void*) {}
+void esp_task_wdt_reset() { ++feeds; }
+struct Done {};
+void ulTaskNotifyTake(int, int) { throw Done{}; }
+void vTaskDelete(void*) {}
+void* _async_service_task_handle=nullptr;
+struct Packet {} packet;
+Packet* _get_async_event() { return events<100 ? &packet : nullptr; }
+struct AsyncTCP_detail { static void handle_async_event(Packet*) { ++events; now+=4; } };
+'''
+        source += function(upstream, 'static void _async_service_task(')
+        source += r'''
+int main() {
+  try { _async_service_task(nullptr); } catch (Done&) {}
+  assert(events==100 && yields>=33 && feeds>=100);
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            cpp = pathlib.Path(directory) / 'fairness.cpp'
+            binary = pathlib.Path(directory) / 'fairness'
+            cpp.write_text(source)
+            subprocess.run(['g++', '-std=c++17', '-Wall', '-Wextra',
+                            '-Wno-unused-parameter', str(cpp), '-o', str(binary)], check=True)
+            subprocess.run([str(binary)], check=True)
+
     def test_burst_cleanup_and_poll_coalescing(self):
         root = pathlib.Path(__file__).resolve().parents[1]
         library = root / 'libraries/AsyncTCP/src'

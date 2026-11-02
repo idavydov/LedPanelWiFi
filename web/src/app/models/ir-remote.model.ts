@@ -9,6 +9,9 @@ export const IR_ACTIONS = [
   {id: 'snake', label: 'Choose Snake'},
   {id: 'tetris', label: 'Choose Tetris'},
   {id: 'arkanoid', label: 'Choose Arkanoid'},
+  {id: 'effect_prev', label: 'Previous effect'},
+  {id: 'effect_next', label: 'Next effect'},
+  {id: 'power', label: 'Power on / off'},
 ] as const;
 
 export interface IrBinding {
@@ -33,6 +36,11 @@ export interface IrState {
   largestHeapBlock?: number;
   rssi?: number;
   resetReason?: string;
+  effectBeforeReset?: string;
+  effectName?: string;
+  brightnessRaw?: number;
+  indexMapActive?: boolean;
+  mappedSlots?: number;
   logSkipped?: number;
 }
 

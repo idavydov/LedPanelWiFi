@@ -363,7 +363,11 @@ void process() {
       }
     } else {
       uint8_t br = specialMode ? specialBrightness : deviceBrightness;
-      if (br == 1 && !(loadingFlag || isAlarming || thisMode == MC_TEXT || thisMode == MC_DRAW || thisMode == MC_LOADIMAGE)) {
+      bool dimClock = br == 1;
+      #if defined(PANEL_PROFILE_S2_MINI)
+      dimClock = false; // Debug brightness must not silently replace the chosen effect with a clock.
+      #endif
+      if (dimClock && !(loadingFlag || isAlarming || thisMode == MC_TEXT || thisMode == MC_DRAW || thisMode == MC_LOADIMAGE)) {
         if (allowHorizontal || allowVertical) {
           customRoutine(MC_CLOCK);    
         } else {
@@ -5379,7 +5383,7 @@ void setRandomMode() {
   } else
   if (effect_order.length() == 2) {
     effect_order_idx = effect_order_idx == 0 ? 1 : 0;
-    eff = effect_order[0];
+    eff = effect_order[effect_order_idx];
   } else {
     effect_order_idx = random8(effect_order.length());
     eff = effect_order[effect_order_idx];

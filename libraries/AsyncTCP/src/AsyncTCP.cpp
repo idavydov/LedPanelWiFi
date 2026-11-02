@@ -329,6 +329,9 @@ void AsyncTCP_detail::handle_async_event(lwip_tcp_event_packet_t *e) {
 }
 
 static void _async_service_task(void *pvParameters) {
+  #if CONFIG_ASYNC_TCP_COOPERATIVE_MS > 0
+  uint32_t lastYield = millis();
+  #endif
   async_tcp_log_d("Task 'async_tcp' started on core %d", static_cast<int>(xPortGetCoreID()));
 #if CONFIG_ASYNC_TCP_USE_WDT
   if (esp_task_wdt_add(NULL) != ESP_OK) {
@@ -341,6 +344,12 @@ static void _async_service_task(void *pvParameters) {
 #if CONFIG_ASYNC_TCP_USE_WDT
       esp_task_wdt_reset();
 #endif
+      #if CONFIG_ASYNC_TCP_COOPERATIVE_MS > 0
+      if (uint32_t(millis() - lastYield) >= CONFIG_ASYNC_TCP_COOPERATIVE_MS) {
+        vTaskDelay(1); // Allow the single-core idle/USB tasks to run during bursts.
+        lastYield = millis();
+      }
+      #endif
     }
     // queue is empty
     // DEBUG_PRINTF("Async task waiting 0x%08",(intptr_t)_async_queue_head);

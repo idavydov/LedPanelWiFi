@@ -8,6 +8,14 @@
       @if (irState; as receiver) {
         <div class="ir-device-status">
           <span>Last reset: <strong>{{ receiver.resetReason || 'Not reported' }}</strong></span>
+          @if (receiver.effectName) {
+            <span>Selected effect: <strong>{{receiver.effectName}}</strong></span>
+            <span>Brightness: {{receiver.brightnessRaw}} / 255</span>
+            <span>Addressing: {{receiver.indexMapActive ? 'index map' : 'segments'}} · {{receiver.mappedSlots}} / 200 mapped slots</span>
+          }
+          @if (receiver.effectBeforeReset) {
+            <span>Effect before reset: <strong>{{receiver.effectBeforeReset}}</strong></span>
+          }
           <span>Uptime: {{ receiver.uptime == null ? '—' : receiver.uptime + ' s' }}</span>
           <span>Free memory: {{ formatBytes(receiver.heap) }} (minimum {{ formatBytes(receiver.minHeap) }})</span>
           <span>Largest block: {{ formatBytes(receiver.largestHeapBlock) }}</span>

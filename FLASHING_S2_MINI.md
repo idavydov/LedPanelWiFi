@@ -55,15 +55,17 @@ the others.
 
 ## Index map
 
-The matrix settings select a preloaded map; they do not edit LED positions.
+The matrix settings can select a preloaded map. The LED position mapper below
+those settings can also identify LEDs and create a custom shape over Wi-Fi.
 The supplied `data/20x10.map` preserves the current parallel layout and all
 200 slots. Upload the filesystem over OTA (below), open Settings → Matrix, choose Index map,
 select `20x10`, and press Apply. One restart after Apply is expected.
 
-For a custom layout, create a CSV with 10 rows and 20 columns, top row first.
+For the older offline workflow, create a CSV with 10 rows and 20 columns, top row first.
 Each cell is a zero-based factory slot index (`0`..`199`), or `-1` for an empty
 position. Slot 200 is index `199`; removing LEDs never shifts these numbers.
-Keep this canvas size for the current profile to retain the 200-slot output.
+The offline generator uses a 20×10 canvas. The browser mapper supports other
+canvas dimensions while retaining the 200-slot physical output.
 
 ```sh
 python3 tools/make_index_map.py --csv /path/to/layout.csv
@@ -75,14 +77,63 @@ Running the generator without `--csv` restores the starter map. Map files are
 binary, with signature `A5 A5`, width and height bytes, then signed 16-bit
 little-endian indices; renaming a CSV to `.map` does not work.
 
+### Identify LEDs and map a shape
+
+Install both updated firmware and UI over OTA, then open Settings → Matrix →
+LED position mapper. Use factory slot IDs **1–200**, with **(0,0) at the bottom
+left**. Choose a slot and press Light this LED: only that LED lights in white at
+about 1%. Previous/Next changes the lit slot; Skip & next omits missing slots.
+Identification stops after closing/disconnecting the page (10-second timeout).
+
+Enter X/Y, or tap a preview cell to select them, then use Assign & next. Text
+import/export uses explicit IDs; omitted IDs stay skipped, and unused canvas
+cells are holes:
+
+```text
+7:0,1
+8:0,2
+200:5,8
+```
+
+Dimensions are 8–64 per axis, with at most 2048 cells; pad smaller shapes with
+empty cells. Duplicate IDs/coordinates and out-of-range values are rejected.
+Save & restart panel persists the active layout in NVS, so it survives future
+firmware/filesystem OTA updates. Keep an exported text copy as a backup. Saving
+or editing a map never renumbers the 200 transmitted slots. After reconnection,
+Load active map reads the actual addressing for verification.
+
+The S2 task watchdog allows 30 seconds (previously 5); AsyncTCP also yields
+during long response bursts so idle and USB tasks can run. Watchdog protection
+remains enabled. This does not rule out other causes of resets.
+The application loop is watched too; progressing OTA uploads and deliberate
+Wi-Fi connection waits feed it. IR diagnostics show the effect selected before
+a warm reset when retained RTC memory is available. Normal LED output is capped
+at 40 fps on the S2 to leave gaps for IR capture; this is a timing mitigation,
+not proof of the cause of any individual failed capture.
+On this profile, minimum brightness keeps the chosen effect; the legacy
+brightness-1 shortcut to clock mode is disabled. The IR tab shows the selected
+effect, raw brightness, addressing mode and mapped slot count for diagnostics.
+
 ### Wi-Fi / OTA updates
 
 Close the panel's browser tabs before updating. The running firmware supports
 authenticated firmware and filesystem OTA on port 3232. Use the panel's IP if
 `GlassPanel.local` does not resolve. The helper prompts for the administrator
-password without saving it or putting it in command-line arguments.
+password on the first upload, then caches it in the desktop keyring after a
+successful upload. Later uploads to the same host reuse it. Passwords never
+enter repository files or command-line arguments. If the Python environment
+lacks keyring support, the helper automatically tries `/usr/bin/python3`, which
+can use the desktop bindings installed by the OS. You can also invoke
+`/usr/bin/python3 tools/ota_upload.py HOST` directly. A running, unlocked desktop
+keyring is required; restricted/sandboxed terminals may block desktop D-Bus access.
+Use `--no-cache` to prompt without reading/writing the cache. To replace a
+changed password, run `python3 tools/ota_upload.py HOST --forget`, then upload
+again. Hostnames and IP addresses have separate cache entries.
 
 ```sh
+# Both already-built images with one password lookup/prompt:
+python3 tools/ota_upload.py GlassPanel.local --both
+
 # Firmware, when firmware source changed:
 pio run -e esp32_s2_mini
 python3 tools/ota_upload.py GlassPanel.local
@@ -92,10 +143,15 @@ pio run -e esp32_s2_mini -t buildfs
 python3 tools/ota_upload.py GlassPanel.local --filesystem
 ```
 
-Wait for the panel to restart between uploads. Filesystem OTA replaces LittleFS
+`--both` checks both images before uploading, sends firmware first, and waits
+up to three minutes for the panel's web port to return before sending LittleFS.
+It stops if the firmware upload or restart fails. Single-image commands remain
+available for retries. The command uploads existing build outputs; it does not
+rebuild them. For separate commands, wait for a restart between uploads.
+Filesystem OTA replaces LittleFS
 contents, including custom maps/files; it preserves NVS credentials and EEPROM
-settings. For this UI/map fix, only the filesystem update is needed. After a
-filesystem upload, reload the UI to fetch the new bundles. If the upload cannot
+settings. The LED mapper and watchdog changes need **firmware first, then filesystem**.
+After a filesystem upload, reload the UI to fetch the new bundles. If the upload cannot
 connect back, allow the uploader's incoming TCP connection on the local firewall;
 `--local-address` selects an interface on computers with multiple networks.
 
@@ -107,6 +163,14 @@ saved on the board; several codes can share an action. The live log shows
 protocols, codes, repeats, matches, and raw timings without a serial console.
 The same tab shows reset reason and memory readings. Use Set 1% brightness to
 lower an existing saved brightness setting without resetting the device.
+Previous effect and Next effect navigate the same effect sequence as the web
+controls (including its random-order setting). Held presses do not repeatedly
+change effects. Power on / off toggles the panel, including while it is off;
+held repeats are ignored. Existing game button assignments retain their IDs.
+With alarms disabled, IR effect cycling skips Dawn, which starts at 2/255
+brightness near the center and manages its own slow sunrise ramp. It can still
+be selected explicitly in the web UI; remove it from the active effect list if
+you do not want it in automatic/web cycling either.
 
 If the browser cannot stay connected, run `pio device monitor -b 115200`
 on the application USB port and send `?` (no Enter required). It prints only

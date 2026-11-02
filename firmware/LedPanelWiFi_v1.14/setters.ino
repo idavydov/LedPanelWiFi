@@ -252,6 +252,9 @@ void set_thisMode(int8_t value) {
   
   // Переключили на новый режим
   thisMode = value;
+  #if defined(PANEL_PROFILE_S2_MINI)
+  panelRememberedEffect = value;
+  #endif
   effect_name.clear();
 
   // Ролучили имя нового режима

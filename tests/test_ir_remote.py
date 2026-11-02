@@ -26,13 +26,21 @@ struct Preferences {
   void end() {}
 };
 constexpr uint8_t MC_MAZE=27, MC_SNAKE=28, MC_TETRIS=29, MC_ARKANOID=30;
+constexpr uint8_t MC_DAWN_ALARM=43, MC_COLORS=20, MAX_EFFECT=47;
 uint8_t thisMode=MC_SNAKE, buttons=4;
 bool isTurnedOff=false, isNightClock=false, gameDemo=false, gamePaused=true;
-bool manual=false;
+int powerToggles=0;
+void turnOnOff() { ++powerToggles; isTurnedOff=!isTurnedOff; }
+bool manual=false, manualMode=false;
+int previousEffects=0, nextEffects=0, persistedMode=-2;
+int dawnSelections=0;
+void prevMode() { ++previousEffects; thisMode=4; }
+void nextMode() { ++nextEffects; thisMode=dawnSelections-- > 0 ? MC_DAWN_ALARM : 5; }
+void putCurrentManualMode(int8_t mode) { persistedMode=mode; }
 int special=0;
 uint32_t irLastDispatch=0;
 uint8_t getGameButtonSpeed() { return 10; }
-void setManualModeTo(bool value) { manual=value; }
+void setManualModeTo(bool value) { manual=manualMode=value; }
 void setEffect(uint8_t value) { thisMode=value; }
 void set_CurrentSpecialMode(int8_t value) { special=value; }
 struct { int interval=0; void setInterval(int value) { interval=value; } } effectTimer;
@@ -125,6 +133,32 @@ int main() {
   irApplyAction(IR_ARKANOID,false,1900);
   irApplyAction(IR_NEXT,false,2000);
   assert(thisMode == MC_MAZE);
+  static_assert(IR_ARKANOID == 9, "Existing stored action IDs must not change");
+  assert(irApplyAction(IR_EFFECT_NEXT,false,2400)=="applied");
+  assert(nextEffects==1 && thisMode==5 && persistedMode==5 && special==-1);
+  assert(gameDemo && !gamePaused && buttons==4);
+  irApplyAction(IR_EFFECT_NEXT,true,2450);
+  assert(nextEffects==1); // held button must not race through effects
+  manualMode=false;
+  assert(irApplyAction(IR_EFFECT_PREV,false,2800)=="applied");
+  assert(previousEffects==1 && persistedMode==-1 && !manualMode);
+  assert(irApplyAction(IR_ACTION_COUNT,false,2900)=="ignored: unknown action");
+  IRBindings effectBindings;
+  assert(effectBindings.add(one,IR_EFFECT_NEXT) && effectBindings.add(two,IR_EFFECT_PREV));
+  assert(effectBindings.valid());
+  assert(irApplyAction(IR_POWER,false,3200)=="applied" && isTurnedOff);
+  irApplyAction(IR_POWER,true,3250);
+  assert(isTurnedOff && powerToggles==1);
+  assert(irApplyAction(IR_POWER,false,3600)=="applied" && !isTurnedOff);
+  assert(powerToggles==2);
+  dawnSelections=1;
+  int before=nextEffects;
+  irApplyAction(IR_EFFECT_NEXT,false,4000);
+  assert(nextEffects==before+2 && thisMode==5); // skip Dawn in alarm-disabled profiles
+  dawnSelections=1000;
+  before=nextEffects;
+  irApplyAction(IR_EFFECT_NEXT,false,4400);
+  assert(nextEffects==before+1+MAX_EFFECT && thisMode==MC_COLORS); // Dawn-only list cannot loop forever
 }
 '''
         with tempfile.TemporaryDirectory() as directory:

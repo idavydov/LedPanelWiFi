@@ -352,7 +352,13 @@
 #include "a_def_soft.h"     // Определение параметров эффектов, переменных программы и т.п.
 #include "timeProcessor.h"  // Класс менеджмента времени (NTP, работа с временем)
 #if defined(PANEL_PROFILE_S2_MINI)
+#include <esp_task_wdt.h>
+#include <esp_attr.h>
 #include "panel_mapping_model.h"
+RTC_NOINIT_ATTR uint32_t panelEffectMagic;
+RTC_NOINIT_ATTR int32_t panelRememberedEffect;
+int32_t panelPreviousEffect = -1;
+bool panelLoopWatched = false;
 #endif
 #if defined(ESP32)
 #include <freertos/queue.h>
@@ -384,7 +390,13 @@ void set_SyncDataMode(eSyncModes value);
 
 void setup() {
   #if defined(PANEL_PROFILE_S2_MINI)
+    if (esp_reset_reason() != ESP_RST_POWERON && panelEffectMagic == 0x4C504546 &&
+        panelRememberedEffect >= 0 && panelRememberedEffect < CountTokens(EFFECT_LIST, ','))
+      panelPreviousEffect = panelRememberedEffect;
+    panelEffectMagic = 0x4C504546;
+    panelRememberedEffect = -1;
     Serial.enableReboot(true); // Keep USB software entry to the ROM bootloader enabled.
+    esp_task_wdt_init(30, true); // Long HTTP transfers get time; stalled tasks still reset.
   #endif
   #if defined(ESP8266)
     ESP.wdtEnable(WDTO_8S);
@@ -1119,6 +1131,9 @@ void setup() {
     });
   
     ArduinoOTA.onProgress([](uint32_t progress, uint32_t total) {
+      #if defined(PANEL_PROFILE_S2_MINI)
+      if (panelLoopWatched) feedLoopWDT(); // A progressing OTA may legitimately take over 30 seconds.
+      #endif
       if (vDEBUG_SERIAL) {
         Serial.printf("Progress: %u%%\r", (unsigned int)(progress / (total / 100)));
       }
@@ -1200,6 +1215,11 @@ void setup() {
   setIdleTimer();
   #if defined(IR_RECEIVE_PIN)
     initializeIRRemote();
+  #endif
+  #if defined(PANEL_PROFILE_S2_MINI)
+    panelRememberedEffect = thisMode;
+    enableLoopWDT(); // Also detect a blocked application loop, not just idle/TCP starvation.
+    panelLoopWatched = true;
   #endif
 }
 
@@ -1329,6 +1349,9 @@ void startWiFi(uint32_t waitTime) {
     
     while (!(stop_waiting || wifi_connected)) {
       yield();
+      #if defined(PANEL_PROFILE_S2_MINI)
+      if (panelLoopWatched) feedLoopWDT(); // Deliberate connection waits are not animation hangs.
+      #endif
       
       #if (USE_BUTTON  == 1)
         if (butt != nullptr) butt->tick();

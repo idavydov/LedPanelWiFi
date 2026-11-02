@@ -6,7 +6,8 @@ IRPressTracker irPress;
 IRLogLimiter irLog;
 QueueHandle_t irCommands = nullptr;
 struct IRCommand { uint32_t client; char text[192]; };
-const char* const irActions[] = {"up", "right", "down", "left", "play", "next", "maze", "snake", "tetris", "arkanoid"};
+const char* const irActions[] = {"up", "right", "down", "left", "play", "next", "maze", "snake", "tetris", "arkanoid", "effect_prev", "effect_next", "power"};
+static_assert(sizeof(irActions) / sizeof(irActions[0]) == IR_ACTION_COUNT, "IR action names must match stored IDs");
 int8_t irLearning = -1;
 uint32_t irLearningOwner = 0, irLearningStarted = 0, irWatchingAt = 0, irWatchingOwner = 0;
 uint32_t irLastDispatch = 0, irSequence = 0, irQuietAt = 0;
@@ -57,6 +58,19 @@ void irSendState(uint32_t client = 0) {
   state["largestHeapBlock"] = ESP.getMaxAllocHeap();
   state["rssi"] = WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0;
   state["resetReason"] = irResetReason();
+  state["effectName"] = getEffectName(thisMode);
+  state["brightnessRaw"] = specialMode ? specialBrightness : deviceBrightness;
+  state["indexMapActive"] = sMATRIX_TYPE == 2;
+  bool mapped[200] = {};
+  uint16_t mappedCount = 0;
+  for (int y = 0; y < pHEIGHT; ++y) for (int x = 0; x < pWIDTH; ++x) {
+    int index = getPixelNumber(x, y);
+    if (index >= 0 && index < 200 && !mapped[index]) { mapped[index] = true; ++mappedCount; }
+  }
+  state["mappedSlots"] = mappedCount;
+  #if defined(PANEL_PROFILE_S2_MINI)
+  state["effectBeforeReset"] = panelPreviousEffect >= 0 ? getEffectName(panelPreviousEffect) : String("");
+  #endif
   state["logSkipped"] = irLog.skipped;
   state["capacity"] = IRBindings::capacity;
   state["learning"] = irLearning >= 0 ? irActions[irLearning] : "";
@@ -158,6 +172,12 @@ bool irGameSelected() {
 }
 
 String irApplyAction(uint8_t action, bool held, uint32_t now) {
+  if (action >= IR_ACTION_COUNT) return "ignored: unknown action";
+  if (action == IR_POWER) {
+    if (held) return "ignored: held control button";
+    turnOnOff();
+    return "applied";
+  }
   if (isTurnedOff || isNightClock) return "ignored: panel is off";
   if (action >= IR_PLAY && held) return "ignored: held control button";
   if (held && uint32_t(now - irLastDispatch) < uint32_t(getGameButtonSpeed()) * 10)
@@ -170,6 +190,26 @@ String irApplyAction(uint8_t action, bool held, uint32_t now) {
   } else if (action == IR_PLAY) {
     if (!irGameSelected() || gameDemo) return "ignored: choose a game first";
     gamePaused = !gamePaused;
+  } else if (action == IR_EFFECT_PREV || action == IR_EFFECT_NEXT) {
+    // Match the web UI's effect navigation, including playlist/random settings.
+    gameDemo = true;
+    gamePaused = false;
+    buttons = 4;
+    if (action == IR_EFFECT_PREV) prevMode();
+    else nextMode();
+    #if (USE_ALARM == 0)
+    // Dawn manages a minutes-long brightness ramp, rather than a normal effect.
+    // It stays manually selectable in the UI, but is not part of IR cycling
+    // on profiles that have alarms disabled. Bound retries handle random order
+    // and a playlist containing only Dawn without hanging the input loop.
+    for (uint8_t attempt = 0; thisMode == MC_DAWN_ALARM && attempt < MAX_EFFECT; ++attempt) {
+      if (action == IR_EFFECT_PREV) prevMode();
+      else nextMode();
+    }
+    if (thisMode == MC_DAWN_ALARM) setEffect(MC_COLORS);
+    #endif
+    putCurrentManualMode(manualMode ? int8_t(thisMode) : -1);
+    if (manualMode) set_CurrentSpecialMode(-1);
   } else {
     const uint8_t modes[] = {MC_MAZE, MC_SNAKE, MC_TETRIS, MC_ARKANOID};
     uint8_t selected = 0;
