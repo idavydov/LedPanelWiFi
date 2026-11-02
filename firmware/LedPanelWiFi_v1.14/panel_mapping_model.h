@@ -45,3 +45,11 @@ struct PanelMapRecord {
 inline uint16_t panelBufferSize(int width, int height) {
   return width * height < 200 ? 200 : width * height;
 }
+
+struct PanelSlotMask {
+  bool visible[200] = {};
+  void include(int index) { if (index >= 0 && index < 200) visible[index] = true; }
+  template<typename Pixel> void apply(Pixel* pixels, const Pixel& black) const {
+    for (int i = 0; i < 200; ++i) if (!visible[i]) pixels[i] = black;
+  }
+};

@@ -883,6 +883,9 @@ void setup() {
     sMATRIX_TYPE = 0;
     putMatrixSegmentType(sMATRIX_TYPE);
   }
+  #if defined(PANEL_PROFILE_S2_MINI)
+  initializePanelVisibility();
+  #endif
   
   #if (USE_POWER == 1)
     if (vPOWER_PIN >= 0) {

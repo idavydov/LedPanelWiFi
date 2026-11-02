@@ -60,7 +60,9 @@ int main() {
 #define USE_E131 0
 uint32_t now=0, prevShowTimer=0;
 uint32_t millis() { return now; }
-struct { int frames=0; void show() { ++frames; } } FastLED;
+bool outsideSlotLit=true;
+struct { int frames=0; void show() { assert(!outsideSlotLit); ++frames; } } FastLED;
+void applyPanelVisibility() { outsideSlotLit=false; }
 '''
         source += function(custom, 'void FastLEDshow(')
         source += r'''
@@ -69,7 +71,8 @@ int main() {
   assert(FastLED.frames==0);
   FastLEDshow(); assert(FastLED.frames==1 && prevShowTimer==25);
   now=49; FastLEDshow(); assert(FastLED.frames==1);
-  now=50; FastLEDshow(); assert(FastLED.frames==2);
+  outsideSlotLit=true; // another raw-buffer effect fills an unmapped slot
+  now=50; FastLEDshow(); assert(FastLED.frames==2 && !outsideSlotLit);
   prevShowTimer=UINT32_MAX-10; now=10;
   FastLEDshow(); assert(FastLED.frames==2);
   now=20; FastLEDshow(); assert(FastLED.frames==3);

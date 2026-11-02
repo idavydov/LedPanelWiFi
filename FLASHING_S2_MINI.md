@@ -101,6 +101,9 @@ Save & restart panel persists the active layout in NVS, so it survives future
 firmware/filesystem OTA updates. Keep an exported text copy as a backup. Saving
 or editing a map never renumbers the 200 transmitted slots. After reconnection,
 Load active map reads the actual addressing for verification.
+Normal output masks omitted slots to black, including effects that fill the raw
+LED buffer. Light this LED intentionally bypasses that mask for identifying a
+factory slot before it has been assigned.
 
 The S2 task watchdog allows 30 seconds (previously 5); AsyncTCP also yields
 during long response bursts so idle and USB tasks can run. Watchdog protection

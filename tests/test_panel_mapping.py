@@ -35,6 +35,9 @@ PanelMapRecord stored;
 int sMATRIX_TYPE=2, pWIDTH=8, pHEIGHT=8, mapListLen=0;
 int16_t* imap=nullptr;
 String mapFiles[5];
+PanelSlotMask panelSlotMask;
+bool panelMaskReady=false;
+int getPixelNumber(int x, int y) { return imap ? imap[x+(pHEIGHT-y-1)*pWIDTH] : -1; }
 struct Preferences {
   bool begin(const char* name, bool) { assert(std::string(name)=="panel-layout"); return storageWorks; }
   size_t putBytes(const char*, const void* value, size_t size) {
@@ -54,20 +57,34 @@ String lastKind, lastOp, lastError;
 void mappingReply(uint32_t, const char* kind, const char* op, const String& error=String()) {
   lastKind=kind; lastOp=op; lastError=error;
 }
-struct CRGB { int value=0; static const CRGB White; };
+struct CRGB { int value; CRGB(int v=0):value(v){} static const CRGB White; static const CRGB Black; };
 const CRGB CRGB::White={255};
-CRGB leds[2048];
+const CRGB CRGB::Black={0};
+CRGB ledStorage[2048];
+CRGB* leds=ledStorage;
 struct {
   int brightness=0, frames=0;
-  void clear() { for(auto& pixel:leds) pixel.value=0; }
+  void clear(bool show=false) { for(auto& pixel:ledStorage) pixel.value=0; if(show) ++frames; }
   void show(int scale) { brightness=scale; ++frames; }
 } FastLED;
 '''
+        source += function(firmware, 'void initializePanelVisibility(')
+        source += function(firmware, 'void applyPanelVisibility(')
         source += function(firmware, 'bool loadStoredMapping(')
         source += function(firmware, 'void handleMappingCommand(')
         source += function(firmware, 'bool renderMappingPreview(')
         source += r'''
 int main() {
+  PanelSlotMask visibility;
+  visibility.include(6); visibility.include(199);
+  visibility.include(-1); visibility.include(200); // invalid/hole addresses never become visible
+  int physical[200]; for (auto& value : physical) value=255;
+  visibility.apply(physical, 0);
+  for (int i=0;i<200;++i) assert(physical[i]==(i==6 || i==199 ? 255 : 0));
+  // Reapply after a raw-buffer effect overwrites every slot.
+  for (auto& value : physical) value=123;
+  visibility.apply(physical, 0);
+  assert(physical[0]==0 && physical[6]==123 && physical[199]==123);
   assert(panelBufferSize(8,8)==200 && panelBufferSize(20,20)==400);
   assert(!mappingDraft.dimensions(7,8) && !mappingDraft.dimensions(64,64));
   handleMappingCommand(R"({"op":"identify","id":200})",1);
@@ -75,7 +92,9 @@ int main() {
   handleMappingCommand(R"({"op":"stop"})",2); // other browser cannot stop it
   assert(mappingSlot==200);
   now+=10001;
+  int previewFrames=FastLED.frames;
   assert(!renderMappingPreview() && mappingSlot==0 && loadingFlag);
+  assert(FastLED.frames==previewFrames+1); // immediately transmit black when identification ends
   handleMappingCommand(R"({"op":"identify","id":200})",1);
   isTurnedOff=true;
   assert(!renderMappingPreview() && mappingSlot==0); // power switch also stops identification
@@ -101,6 +120,10 @@ int main() {
   assert(stored.valid() && stored.map.at(0,0)==199 && stored.map.at(7,7)==-1);
   assert(loadStoredMapping() && imap[56]==199 && imap[49]==6 && imap[0]==-1);
   assert(mapListLen==1 && mapFiles[0]=="8x8");
+  initializePanelVisibility();
+  for(auto& pixel:ledStorage) pixel.value=255;
+  applyPanelVisibility();
+  for(int i=0;i<200;++i) assert(leds[i].value==(i==6 || i==199 ? 255 : 0));
   delete[] imap; imap=nullptr;
   stored.map.x[0]=0; stored.map.y[0]=0;
   assert(!stored.valid()); // reject corrupted duplicate coordinates

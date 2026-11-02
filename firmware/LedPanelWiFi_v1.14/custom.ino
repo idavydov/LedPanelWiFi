@@ -621,6 +621,7 @@ void FastLEDshow() {
   // Leave time between 6 ms LED transfers for IR edge capture on the single core.
   // This skips redundant frames rather than blocking command/OTA processing.
   if (uint32_t(millis() - prevShowTimer) < 25) return;
+  applyPanelVisibility(); // Raw-buffer effects must obey the active shape too.
   #endif
   // Если при трансляции отправлять пакеты чаще E131_FRAME_DELAY мс - они забивают сеть до зависания роутера
   #if (USE_E131 == 1)

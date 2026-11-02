@@ -4,6 +4,19 @@ PanelMapDraft mappingDraft;
 uint32_t mappingOwner = 0, mappingDraftAt = 0, mappingPreviewOwner = 0, mappingPreviewAt = 0;
 int mappingSlot = 0;
 bool mappingUploading = false;
+PanelSlotMask panelSlotMask;
+bool panelMaskReady = false;
+
+void initializePanelVisibility() {
+  panelSlotMask = PanelSlotMask();
+  for (int y = 0; y < pHEIGHT; ++y) for (int x = 0; x < pWIDTH; ++x)
+    panelSlotMask.include(getPixelNumber(x, y));
+  panelMaskReady = true;
+}
+
+void applyPanelVisibility() {
+  if (panelMaskReady && leds) panelSlotMask.apply(leds, CRGB(CRGB::Black));
+}
 
 bool loadStoredMapping() {
   if (sMATRIX_TYPE != 2) return false;
@@ -136,7 +149,7 @@ bool renderMappingPreview() {
   static uint32_t lastFrame = 0;
   if (mappingSlot && (isTurnedOff || !ws.hasClient(mappingPreviewOwner) || millis() - mappingPreviewAt >= 10000)) mappingSlot = 0;
   if (!mappingSlot) {
-    if (wasActive) { FastLED.clear(); loadingFlag = true; wasActive = false; }
+    if (wasActive) { FastLED.clear(true); loadingFlag = true; wasActive = false; }
     return false;
   }
   wasActive = true;
