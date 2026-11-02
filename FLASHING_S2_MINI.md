@@ -53,6 +53,52 @@ Later, adjust the canvas and index map to match the LEDs on the glass. Retain
 factory slot numbers and the 200-slot output; removing an LED does not renumber
 the others.
 
+## Index map
+
+The matrix settings select a preloaded map; they do not edit LED positions.
+The supplied `data/20x10.map` preserves the current parallel layout and all
+200 slots. Upload the filesystem over OTA (below), open Settings → Matrix, choose Index map,
+select `20x10`, and press Apply. One restart after Apply is expected.
+
+For a custom layout, create a CSV with 10 rows and 20 columns, top row first.
+Each cell is a zero-based factory slot index (`0`..`199`), or `-1` for an empty
+position. Slot 200 is index `199`; removing LEDs never shifts these numbers.
+Keep this canvas size for the current profile to retain the 200-slot output.
+
+```sh
+python3 tools/make_index_map.py --csv /path/to/layout.csv
+pio run -e esp32_s2_mini -t buildfs
+python3 tools/ota_upload.py GlassPanel.local --filesystem
+```
+
+Running the generator without `--csv` restores the starter map. Map files are
+binary, with signature `A5 A5`, width and height bytes, then signed 16-bit
+little-endian indices; renaming a CSV to `.map` does not work.
+
+### Wi-Fi / OTA updates
+
+Close the panel's browser tabs before updating. The running firmware supports
+authenticated firmware and filesystem OTA on port 3232. Use the panel's IP if
+`GlassPanel.local` does not resolve. The helper prompts for the administrator
+password without saving it or putting it in command-line arguments.
+
+```sh
+# Firmware, when firmware source changed:
+pio run -e esp32_s2_mini
+python3 tools/ota_upload.py GlassPanel.local
+
+# UI and/or index map:
+pio run -e esp32_s2_mini -t buildfs
+python3 tools/ota_upload.py GlassPanel.local --filesystem
+```
+
+Wait for the panel to restart between uploads. Filesystem OTA replaces LittleFS
+contents, including custom maps/files; it preserves NVS credentials and EEPROM
+settings. For this UI/map fix, only the filesystem update is needed. After a
+filesystem upload, reload the UI to fetch the new bundles. If the upload cannot
+connect back, allow the uploader's incoming TCP connection on the local firewall;
+`--local-address` selects an interface on computers with multiple networks.
+
 ## IR remote
 
 Connect VS1838B VCC to 3V3, GND to GND, and OUT to GPIO 5. In the IR remote tab,

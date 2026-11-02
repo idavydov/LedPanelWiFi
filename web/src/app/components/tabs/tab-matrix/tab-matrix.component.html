@@ -3,11 +3,17 @@
     <legend>{{ L.$('Настройки матрицы') }}</legend>
 
     <div class="radio-buttons">
-      <mat-radio-group [(ngModel)]="radio_idx" [disableControl]="isDisabled() || index_files.length === 0" color="primary">
-        <mat-radio-button [value]="0" style="display:flex;flex-direction:row;" class="rb_index"> {{ L.$('Карта индексов') }}</mat-radio-button>
+      <mat-radio-group [(ngModel)]="radio_idx" [disableControl]="isDisabled()" color="primary">
+        <mat-radio-button [value]="0" [disabled]="index_files.length === 0" style="display:flex;flex-direction:row;" class="rb_index"> {{ L.$('Карта индексов') }}</mat-radio-button>
         <mat-radio-button [value]="1">{{ L.$('Использовать сегменты') }}</mat-radio-button>
       </mat-radio-group>
     </div>
+
+    @if (index_files.length === 0) {
+      <p>{{ L.$('No index maps found. Upload a WxH.map file to the filesystem root, then restart the panel.') }}</p>
+    } @else {
+      <p>{{ L.$('Select an uploaded index map below. Apply saves the settings and restarts the panel once.') }}</p>
+    }
 
     <div class="idx-files-sel">
       <mat-select [(ngModel)]="index_file" panelClass="app-select-panel" [disableControl]="isDisabled() || radio_idx !== 0 || index_files.length === 0">
@@ -137,7 +143,7 @@
 
     <div class="action-container">
       <div class="action-button">
-        <button mat-raised-button color="primary" (click)="applyMatrixSettings($event)" [disabled]="isDisabled()">{{L.$('Применить')}}</button>
+        <button mat-raised-button color="primary" (click)="applyMatrixSettings($event)" [disabled]="isDisabled() || (radio_idx === 0 && !hasSelectedIndexMap())">{{L.$('Применить')}}</button>
       </div>
     </div>
 

@@ -623,7 +623,7 @@ export class StateModel implements IStateModel {
       case 'M9':   this.tol_seg_dir = Number(value);                              break;
       case 'M10': {
           this.map_idx_list = new Array<ComboBoxItem>();
-          const parts = ('' + value).split(',');
+          const parts = ('' + value).split(',').map(name => name.trim()).filter(name => name.length > 0);
           let idx = 0;
           parts.forEach(val => {
             const itm = new ComboBoxItem(val, idx++);

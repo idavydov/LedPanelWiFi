@@ -124,9 +124,11 @@ export class TabMatrixComponent extends Base implements OnInit, OnDestroy {
               break;
             case 'M10':
               this.index_files = this.managementService.state.map_idx_list;
+              this.normalizeIndexSelection();
               break;
             case 'M11':
               this.index_file = this.managementService.state.map_idx;
+              this.normalizeIndexSelection();
               break;
           }
         }
@@ -134,6 +136,7 @@ export class TabMatrixComponent extends Base implements OnInit, OnDestroy {
   }
 
   applyMatrixSettings($event: MouseEvent) {
+    if (this.isDisabled() || (this.radio_idx === 0 && !this.hasSelectedIndexMap())) return;
     /*
       - $2 M0 M1 M2 M3 M4 M5 M6 M7 M8 M9 M11
          M0  - ширина сегмента матрицы 1..127
@@ -170,9 +173,17 @@ export class TabMatrixComponent extends Base implements OnInit, OnDestroy {
     return !this.socketService.isConnected;
   }
 
+  normalizeIndexSelection(): void {
+    if (!this.hasSelectedIndexMap()) this.index_file = this.index_files[0]?.value ?? -1;
+  }
+
+  hasSelectedIndexMap(): boolean {
+    return this.index_files.some(file => file.value === this.index_file);
+  }
+
   getMatrixSize(): string {
     if (this.radio_idx == 0) {
-      return this.index_files.length == 0 ? '0 x 0' : `${this.index_files[this.index_file].displayText.replace('x', ' x ')}`;
+      return this.index_files.find(file => file.value === this.index_file)?.displayText.replace('x', ' x ') ?? '—';
     }
 
     const w = this.segWidthFormControl.value as number;
