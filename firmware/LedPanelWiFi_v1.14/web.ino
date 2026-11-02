@@ -65,6 +65,13 @@ void processWebSocketMessage(void *arg, uint8_t *data, size_t len, AsyncWebSocke
     String event(incoming["e"].as<const char*>());
     String command(incoming["d"].as<const char*>());
 
+    #if defined(PANEL_PROFILE_S2_MINI)
+    if (event == "mapping") {
+      handleMappingCommand(command, client->id());
+      return;
+    }
+    #endif
+
     #if defined(IR_RECEIVE_PIN)
       if (event == "ir") {
         enqueueIRCommand(command, client->id());

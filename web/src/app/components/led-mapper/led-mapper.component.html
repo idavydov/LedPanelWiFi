@@ -1,0 +1,53 @@
+<fieldset [disabled]="!socket.isConnected || busy">
+  <legend>LED position mapper</legend>
+  <p>Factory slots are <b>1–200</b>. Missing slots stay missing; they never renumber.
+    Coordinates start at <b>(0,0), bottom left</b>. Omitted coordinates are holes.</p>
+  <div class="controls">
+    <label>Width <input type="number" min="8" max="64" [(ngModel)]="width" (ngModelChange)="edit()"></label>
+    <label>Height <input type="number" min="8" max="64" [(ngModel)]="height" (ngModelChange)="edit()"></label>
+  </div>
+  <p>Pad smaller shapes to at least 8×8. Up to 2048 cells; output always remains 200 slots.</p>
+  <div class="controls">
+    <button type="button" (click)="selectSlot(slot - 1)" [disabled]="slot <= 1">Previous</button>
+    <label>Slot <input type="number" min="1" max="200" [ngModel]="slot" (ngModelChange)="selectSlot($event)"></label>
+    <button type="button" (click)="selectSlot(slot + 1)" [disabled]="slot >= 200">Next</button>
+    <button type="button" (click)="identify()" [disabled]="!ready">Light this LED</button>
+    <button type="button" (click)="stop()">Stop identifying</button>
+  </div>
+  <p>Identification lights only the selected slot in white at about 1%. If no LED lights, skip that slot.
+    It stops automatically after disconnecting or closing this page.</p>
+  <div class="controls">
+    <label>X <input type="number" min="0" [max]="width - 1" [(ngModel)]="x"></label>
+    <label>Y <input type="number" min="0" [max]="height - 1" [(ngModel)]="y"></label>
+    <button type="button" (click)="assign()" [disabled]="!!error">Assign</button>
+    <button type="button" (click)="assign(true)" [disabled]="!!error">Assign & next</button>
+    <button type="button" (click)="skip()" [disabled]="!!error">Skip & next</button>
+  </div>
+  <div class="preview" role="group" aria-label="Shape preview; tap a cell to select its coordinates">
+    <svg [attr.viewBox]="'0 0 ' + width * 20 + ' ' + height * 20" aria-label="Mapped LED positions">
+      @for (cell of cells; track $index) {
+        <g (click)="chooseCell(cell.x, cell.y)">
+          <rect [attr.x]="cell.x * 20" [attr.y]="(height - 1 - cell.y) * 20" width="19" height="19"
+                [class.assigned]="cell.id" [class.selected]="cell.id === slot" [class.target]="cell.x === x && cell.y === y"/>
+          @if (cell.id) {
+            <text [attr.x]="cell.x * 20 + 9.5" [attr.y]="(height - 1 - cell.y) * 20 + 12">{{cell.id}}</text>
+          }
+        </g>
+      }
+    </svg>
+  </div>
+  <label class="positions">Positions (ID:x,y; one per line)
+    <textarea [(ngModel)]="text" (ngModelChange)="edit()" rows="10" spellcheck="false" placeholder="7:0,1&#10;8:0,2&#10;200:5,8"></textarea>
+  </label>
+  <p>{{entries.length}} mapped; {{200 - entries.length}} skipped slots.</p>
+  <div class="controls">
+    <label class="file">Import text <input type="file" accept=".txt,text/plain" (change)="importFile($event)"></label>
+    <button type="button" (click)="download()">Export text</button>
+    <button type="button" (click)="load()" [disabled]="!ready">Load active map (replaces draft)</button>
+    <button type="button" (click)="save()" [disabled]="!ready || !!error || !entries.length">Save & restart panel</button>
+  </div>
+</fieldset>
+@if (busy) { <p role="status">Saving map…</p> }
+@if (!ready) { <p>Waiting for mapper support. Install the updated firmware over OTA first.</p> }
+@if (error) { <p class="error" role="alert">{{error}}</p> }
+<p role="status">{{status}}</p>

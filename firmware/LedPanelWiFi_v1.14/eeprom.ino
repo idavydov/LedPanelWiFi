@@ -262,7 +262,11 @@ void loadSettings() {
       pHEIGHT             = sHEIGHT * mHEIGHT;
     }
     
+    #if defined(PANEL_PROFILE_S2_MINI)
+    NUM_LEDS = panelBufferSize(pWIDTH, pHEIGHT);
+    #else
     NUM_LEDS              = pWIDTH * pHEIGHT;
+    #endif
     maxDim                = max(pWIDTH, pHEIGHT);
     minDim                = min(pWIDTH, pHEIGHT);
     

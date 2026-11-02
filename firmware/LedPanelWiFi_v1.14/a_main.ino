@@ -259,6 +259,9 @@ void process() {
     changed_keys.clear();
   }
       
+  #if defined(PANEL_PROFILE_S2_MINI)
+  if (renderMappingPreview()) return; // Keep command/status handling alive while identifying.
+  #endif
   bool needProcessEffect = true;
   
   #if (USE_E131 == 1)

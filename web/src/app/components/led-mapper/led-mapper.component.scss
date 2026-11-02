@@ -1,0 +1,19 @@
+:host { display: block; max-width: 680px; margin: 20px auto; }
+fieldset { min-width: 0; border: 1px solid #8888; border-radius: 8px; padding: 12px; }
+p { line-height: 1.5; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 12px 0; }
+label { display: flex; flex-direction: column; gap: 4px; }
+input[type=number] { width: 70px; }
+input, button, textarea { font: inherit; box-sizing: border-box; padding: 8px; }
+button { min-height: 44px; cursor: pointer; }
+button:disabled { cursor: default; }
+.positions textarea { width: 100%; font-family: monospace; }
+.preview { overflow: auto; max-height: 440px; margin: 15px 0; }
+svg { width: 100%; min-width: 320px; display: block; }
+rect { fill: #7773; stroke: #8886; cursor: pointer; }
+rect.assigned { fill: #5b87ab; }
+rect.selected { fill: #d58123; }
+rect.target { stroke: #f2b93e; stroke-width: 2px; }
+text { fill: white; font: 8px sans-serif; text-anchor: middle; pointer-events: none; }
+.error { color: #da5b53; }
+.file input { max-width: 100%; }

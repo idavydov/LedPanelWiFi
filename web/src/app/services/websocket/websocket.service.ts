@@ -248,7 +248,7 @@ export class WebsocketService extends Base implements IWebsocketService, OnDestr
   * */
   public send(event: string, data: any = {}): void {
     if (this.isConnected) {
-      if (event === WS.SEND.COMMAND || event === 'ir') {
+      if (event === WS.SEND.COMMAND || event === 'ir' || event === 'mapping') {
         this.websocket$?.next({e: event, d: data});
       }
     }

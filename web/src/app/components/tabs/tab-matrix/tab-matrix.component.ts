@@ -18,6 +18,7 @@ import { DisableControlDirective } from '../../../directives/disable-control.dir
 import { MatRadioModule } from '@angular/material/radio';
 import { NgStyle } from '@angular/common';
 import {Base} from "../../base.class";
+import {LedMapperComponent} from '../../led-mapper/led-mapper.component';
 
 @Component({
     selector: 'app-tab-matrix',
@@ -25,6 +26,7 @@ import {Base} from "../../base.class";
     styleUrls: ['./tab-matrix.component.scss'],
     standalone: true,
     imports: [
+        LedMapperComponent,
         NgStyle,
         MatRadioModule,
         FormsModule,

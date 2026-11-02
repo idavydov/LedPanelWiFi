@@ -228,6 +228,9 @@ int8_t scanIndexMaps() {
 bool loadIndexMap() {
 
   bool isLoaded = true;
+  #if defined(PANEL_PROFILE_S2_MINI)
+  if (loadStoredMapping()) return true;
+  #endif
   
 
   if (scanIndexMaps() == 0) {
@@ -236,8 +239,10 @@ bool loadIndexMap() {
   }
   
   // Создать массив индексов с текущими размерами матрицы, заполнить значениями -1
-  imap = new int16_t[NUM_LEDS];
-  for (int16_t i = 0; i < NUM_LEDS; i++) imap[i] = -1;
+  const uint16_t mapCells = uint16_t(pWIDTH) * pHEIGHT;
+  imap = new (std::nothrow) int16_t[mapCells];
+  if (!imap) return false;
+  for (uint16_t i = 0; i < mapCells; i++) imap[i] = -1;
 
   String message;
     
@@ -288,7 +293,7 @@ bool loadIndexMap() {
       break;
     }
 
-    for (uint16_t i = 0; i < NUM_LEDS; i++) {
+    for (uint16_t i = 0; i < mapCells; i++) {
       len = file.read(buf, 2);
       ok = len == 2;
       if (!ok) {
@@ -297,6 +302,9 @@ bool loadIndexMap() {
         break;
       }
       imap[i] = (int16_t)(buf[1] << 8 | buf[0]);
+      #if defined(PANEL_PROFILE_S2_MINI)
+      if (imap[i] < -1 || imap[i] >= 200) { isLoaded = false; break; }
+      #endif
     }    
 
     break;

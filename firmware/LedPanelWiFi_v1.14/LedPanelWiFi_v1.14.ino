@@ -351,6 +351,9 @@
 #include "network_security.h" // Required administrator credentials, loaded after a_def_pass.h
 #include "a_def_soft.h"     // Определение параметров эффектов, переменных программы и т.п.
 #include "timeProcessor.h"  // Класс менеджмента времени (NTP, работа с временем)
+#if defined(PANEL_PROFILE_S2_MINI)
+#include "panel_mapping_model.h"
+#endif
 #if defined(ESP32)
 #include <freertos/queue.h>
 #endif
@@ -821,7 +824,11 @@ void setup() {
     pHEIGHT = sHEIGHT * mHEIGHT;
   }
 
+  #if defined(PANEL_PROFILE_S2_MINI)
+  NUM_LEDS = panelBufferSize(pWIDTH, pHEIGHT);
+  #else
   NUM_LEDS = pWIDTH * pHEIGHT;
+  #endif
   maxDim   = max(pWIDTH, pHEIGHT);
   minDim   = min(pWIDTH, pHEIGHT);
 

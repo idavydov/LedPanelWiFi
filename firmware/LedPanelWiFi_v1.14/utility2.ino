@@ -30,6 +30,14 @@ void allocateLeds() {
       int16_t  led_start = getLedLineStartIndex(i);
       int16_t  led_count = getLedLineLength(i);
       int8_t   led_rgb = getLedLineRGB(i);
+      #if defined(PANEL_PROFILE_S2_MINI)
+      // The physical output does not grow/shrink with the logical canvas.
+      isLineUsed = i == 1;
+      led_pin = LED_PIN;
+      led_start = 0;
+      led_count = 200;
+      led_rgb = 1; // RGB
+      #endif
 
       EOrder   color_order = COLOR_ORDER;
 
