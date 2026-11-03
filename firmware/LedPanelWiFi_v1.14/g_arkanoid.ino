@@ -7,6 +7,7 @@
 #define BLOCKS_H 4        // высота кучи блоков
 #define ARK_LINE_NUM 8    // количество "линий" с блоками других уровней
 #define ARK_LINE_MAX 4    // макс. длина линии
+constexpr uint32_t ARK_DEMO_ROUND_MS = 5UL * 60 * 1000;
 
 // цвета блоков по крутости
 #define BLOCK_COLOR_1 CRGB::Aqua
@@ -16,12 +17,13 @@
 uint8_t shelfMAX;
 int16_t posX_ark, posY_ark, lastSpeed, arkScore;
 int8_t  velX_ark, velY_ark, shelf_x;
+uint32_t arkRoundStarted = 0;
 
-timerMinim popTimeout(500);
 timerMinim shelfTimer(150);
 
 void newGameArkan() {
   arkScore = 0;
+  arkRoundStarted = millis();
   generateBlocks();
   shelf_x = pWIDTH / 2 - SHELF_LENGTH / 2;
   posX_ark = pWIDTH / 2 * 10;
@@ -47,6 +49,10 @@ void arkanoidRoutine() {
   }
 
   if (gameDemo) {
+    if (!gamePaused && uint32_t(millis() - arkRoundStarted) >= ARK_DEMO_ROUND_MS) {
+      gameOverArkan(); // Show the score and start a fresh demo round.
+      return;
+    }
     if (shelfTimer.isReady()) {
       if (floor(posX_ark / 10) > shelf_x - SHELF_LENGTH / 2 - 1) buttons = 1;
       if (floor(posX_ark / 10) < shelf_x + SHELF_LENGTH / 2 + 1) buttons = 3;
@@ -65,6 +71,7 @@ void arkanoidRoutine() {
 
   if (!gamePaused && gameTimer.isReady()) {        // главный таймер игры
     drawPixelXY(posX_ark / 10, posY_ark / 10, CRGB::Black);
+    const int16_t previousY = posY_ark;
     posX_ark = posX_ark + velX_ark;
     posY_ark = posY_ark + velY_ark;
     int8_t posX_arkm = posX_ark / 10;
@@ -86,35 +93,37 @@ void arkanoidRoutine() {
       velX_ark = -velX_ark;
     }
 
-    // проверка на пробитие дна
-    if (posY_ark < 9) {
-      gameOverArkan();
-      //posY_ark = 0;
-      //velY_ark = -velY_ark;
-    }
-
     // проверка на ударение с площадкой
-    if (velY_ark < 0 && posY_ark > 10 && posY_ark <= 20 && posX_arkm >= shelf_x && posX_arkm < (shelf_x + SHELF_LENGTH)) {
-      // таймаут, чтобы исключить дрочку у полки
-      if (popTimeout.isReady()) {
+    // The paddle occupies row 0. Ball positions use tenths of a row, so
+    // contact is at y=10 (row 1), not y=20 with an empty row in between.
+    // Crossing while descending prevents a second bounce without a timer.
+    posX_arkm = posX_ark / 10;
+    if (velY_ark < 0 && previousY >= 10 && posY_ark <= 10 && posX_arkm >= shelf_x && posX_arkm < (shelf_x + SHELF_LENGTH)) {
+      posY_ark = 10;
 
-        // тут, короче, если длина полки больше двух, то её края "подкручивают"
-        // шарик, т.е. при отскоке меняют скорость по оси Х
-        if (SHELF_LENGTH > 2) {
-          if (posX_arkm == shelf_x) {
-            velX_ark -= 2;  // уменьшаем скорость по Х
-            // расчёт скорости по У с учётом общего заданного вектора скорости
-            velY_ark = (uint32_t)sqrt(sq(VELOCITY) - sq(velX_ark));
-          } else if (posX_arkm == (shelf_x + SHELF_LENGTH - 1)) {
-            velX_ark += 2;  // увеличиваем скорость по Х
-            velY_ark = (uint32_t)sqrt(sq(VELOCITY) - sq(velX_ark));
-          } else {
-            velY_ark = -velY_ark;
-          }
+      // тут, короче, если длина полки больше двух, то её края "подкручивают"
+      // шарик, т.е. при отскоке меняют скорость по оси Х
+      if (SHELF_LENGTH > 2) {
+        if (posX_arkm == shelf_x) {
+          velX_ark = constrain(int(velX_ark) - 2, 1 - VELOCITY, VELOCITY - 1);
+          // расчёт скорости по У с учётом общего заданного вектора скорости
+          velY_ark = (uint32_t)sqrt(sq(VELOCITY) - sq(velX_ark));
+        } else if (posX_arkm == (shelf_x + SHELF_LENGTH - 1)) {
+          velX_ark = constrain(int(velX_ark) + 2, 1 - VELOCITY, VELOCITY - 1);
+          velY_ark = (uint32_t)sqrt(sq(VELOCITY) - sq(velX_ark));
         } else {
           velY_ark = -velY_ark;
         }
+      } else {
+        velY_ark = -velY_ark;
       }
+    }
+
+    // A missed paddle ends the frame; do not draw stale ball coordinates over
+    // the new game created by gameOverArkan(). Check after paddle contact.
+    if (posY_ark < 10) {
+      gameOverArkan();
+      return;
     }
 
     // пробитие верха
@@ -130,7 +139,7 @@ void arkanoidRoutine() {
         redrawBlock(ballX + 1, ballY);
         velX_ark = -velX_ark;
       }
-      if (ballX > 1 && velX_ark < 0 && getPixColorXY(ballX - 1, ballY) != 0) {
+      if (ballX > 0 && velX_ark < 0 && getPixColorXY(ballX - 1, ballY) != 0) {
         redrawBlock(ballX - 1, ballY);
         velX_ark = -velX_ark;
       }

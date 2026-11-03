@@ -175,6 +175,9 @@ Previous effect and Next effect navigate the same effect sequence as the web
 controls (including its random-order setting). Held presses do not repeatedly
 change effects. Power on / off toggles the panel, including while it is off;
 held repeats are ignored. Existing game button assignments retain their IDs.
+Arkanoid demo rounds show the score and restart after five minutes, so the
+computer cannot bounce indefinitely around a remaining block. Human-controlled
+games have no time limit.
 With alarms disabled, IR effect cycling skips Dawn, which starts at 2/255
 brightness near the center and manages its own slow sunrise ramp. It can still
 be selected explicitly in the web UI; remove it from the active effect list if
