@@ -3,6 +3,7 @@
 IRrecv irReceiver(IR_RECEIVE_PIN, 256, 15, true);
 IRBindings irBindings;
 IRPressTracker irPress;
+IRLearnConfirmation irLearnConfirmation;
 IRLogLimiter irLog;
 QueueHandle_t irCommands = nullptr;
 struct IRCommand { uint32_t client; char text[192]; };
@@ -136,15 +137,21 @@ void irHandleCommand(const char* text, uint32_t client) {
     return;
   }
   if (operation == "learn") {
+    if (irLearning >= 0) {
+      irNotice = "Finish or cancel the current learning action first.";
+      irSendState(client);
+      return;
+    }
     String action = command["action"] | "";
     for (uint8_t i = 0; i < IR_ACTION_COUNT; ++i) {
       if (action != irActions[i]) continue;
       irLearning = i;
       irLearningOwner = client;
       irLearningStarted = millis();
+      irLearnConfirmation.reset();
       irWaitForRelease = true;
       irQuietAt = millis() - 350;
-      irNotice = "Press a remote button within 15 seconds.";
+      irNotice = "Press and release the same button twice within 15 seconds.";
       irSendState();
       return;
     }
@@ -244,6 +251,7 @@ void tickIRRemote() {
   IRCode code = {(int16_t)result.decode_type, result.bits, result.value};
   bool known = result.decode_type != UNKNOWN && !result.overflow && result.bits <= 64 &&
                (result.repeat || result.bits > 0);
+  if (!known) irPress.invalidateRepeats(); // Do not attach short repeats across a damaged capture.
   if (result.decode_type == RC5 || result.decode_type == RC5X)
     code.value = (uint64_t(result.address) << 32) | result.command;
   if (result.decode_type == RC6 && result.bits >= 4 && result.bits <= 64)
@@ -251,20 +259,29 @@ void tickIRRemote() {
   bool held = false;
   bool resolved = known && irPress.resolve(code, result.repeat, now, held);
   int matched = resolved ? irBindings.find(code) : -1;
-  String outcome = known ? "unmapped" : "unrecognized protocol or capture overflow";
+  String outcome = known ? "unmapped" : (result.overflow ? "capture overflow" : "unrecognized protocol");
 
   if (irLearning >= 0) {
+    bool released = !irWaitForRelease;
     irQuietAt = now;
     irWaitForRelease = true;
-    if (resolved && !result.repeat && !held && code.bits > 0 && code.bits <= 64) {
-      IRBindings updated = irBindings;
-      if (matched >= 0) {
-        irNotice = irBindings.entries[matched].action == irLearning ? "This code is already assigned here." : "This code belongs to another action; remove it there first.";
-      } else if (!updated.add(code, irLearning)) irNotice = "Binding storage is full (32 codes). Remove a code first.";
-      else irNotice = irPersistBindings(updated) ? "Button learned and saved." : "Could not save the new binding.";
-      irLearning = -1;
-      outcome = "learning finished";
-      irSendState();
+    if (resolved && released && !result.repeat && !held && code.bits > 0 && code.bits <= 64) {
+      IRLearnConfirmation::Result confirmation = irLearnConfirmation.observe(code);
+      if (matched < 0 && confirmation != IRLearnConfirmation::Confirmed) {
+        irNotice = confirmation == IRLearnConfirmation::First ? "First press captured. " : "Code changed; nothing saved. ";
+        irNotice += irCodeId(code.protocol, code.bits, code.value) + ". Release, wait briefly, then press the same button again.";
+        outcome = "learning: awaiting matching second press";
+        irSendState();
+      } else {
+        IRBindings updated = irBindings;
+        if (matched >= 0) {
+          irNotice = irBindings.entries[matched].action == irLearning ? "This code is already assigned here." : "This code belongs to another action; remove it there first.";
+        } else if (!updated.add(code, irLearning)) irNotice = "Binding storage is full (32 codes). Remove a code first.";
+        else irNotice = irPersistBindings(updated) ? "Button learned and saved." : "Could not save the new binding.";
+        irLearning = -1;
+        outcome = "learning finished";
+        irSendState();
+      }
     } else outcome = "learning: waiting for a fresh recognized press";
   } else if (irWaitForRelease) {
     irQuietAt = now;

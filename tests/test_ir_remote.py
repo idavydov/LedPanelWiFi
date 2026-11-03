@@ -108,6 +108,27 @@ int main() {
   code=two;
   assert(press.resolve(code,false,20,held) && held); // Uptime wraparound.
 
+  IRPressTracker filtered;
+  code=one;
+  assert(filtered.resolve(code,false,1000,held) && !held);
+  filtered.invalidateRepeats(); // damaged frame from a different button must break inheritance
+  code={3,0,UINT64_MAX};
+  assert(!filtered.resolve(code,true,1100,held));
+  code=one;
+  assert(filtered.resolve(code,false,1150,held) && held); // a full-code hold stays held after noise
+  code={3,0,UINT64_MAX};
+  assert(filtered.resolve(code,true,1200,held) && held);
+
+  IRLearnConfirmation learning;
+  assert(learning.observe(one)==IRLearnConfirmation::First);
+  assert(learning.observe(two)==IRLearnConfirmation::Changed);
+  assert(learning.observe(two)==IRLearnConfirmation::Confirmed);
+  learning.reset();
+  assert(learning.observe(two)==IRLearnConfirmation::First); // a new action cannot reuse the old confirmation
+  IRCode other=two; ++other.bits;
+  assert(learning.observe(other)==IRLearnConfirmation::Changed);
+  assert(learning.observe(other)==IRLearnConfirmation::Confirmed);
+
   assert(irApplyAction(IR_PLAY,false,1000) == "applied" && !gamePaused);
   irApplyAction(IR_PLAY,true,1100);
   assert(!gamePaused); // Holding Start must not toggle repeatedly.

@@ -64,11 +64,13 @@ struct IRBindings {
 struct IRPressTracker {
   IRCode last = {};
   bool hasLast = false;
+  bool repeatAllowed = false;
   uint32_t receivedAt = 0;
+  void invalidateRepeats() { repeatAllowed = false; }
   bool resolve(IRCode& code, bool repeat, uint32_t now, bool& held) {
     held = hasLast && uint32_t(now - receivedAt) < 300;
     if (repeat) {
-      if (!held || code.protocol != last.protocol) return false;
+      if (!held || !repeatAllowed || code.protocol != last.protocol) { invalidateRepeats(); return false; }
       code = last;
     } else {
       held = held && code == last;
@@ -76,7 +78,23 @@ struct IRPressTracker {
     last = code;
     receivedAt = now;
     hasLast = true;
+    repeatAllowed = true;
     return true;
+  }
+};
+
+// A single plausible but damaged capture must not become a saved assignment.
+struct IRLearnConfirmation {
+  enum Result { First, Changed, Confirmed };
+  IRCode candidate = {};
+  bool seen = false;
+  void reset() { seen = false; }
+  Result observe(const IRCode& code) {
+    if (seen && code == candidate) return Confirmed;
+    const Result result = seen ? Changed : First;
+    candidate = code;
+    seen = true;
+    return result;
   }
 };
 

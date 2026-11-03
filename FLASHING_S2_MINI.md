@@ -161,7 +161,12 @@ connect back, allow the uploader's incoming TCP connection on the local firewall
 ## IR remote
 
 Connect VS1838B VCC to 3V3, GND to GND, and OUT to GPIO 5. In the IR remote tab,
-click Add code for an action and press the remote button. Up to 32 codes are
+click Add code for an action and press/release the same button twice, with a
+brief pause between presses. New codes require two matching fresh captures;
+holding a button does not confirm learning. Damaged/overflow captures clear
+repeat association so later short repeats cannot reuse an earlier button.
+Existing assignments are preserved; remove and relearn any suspect assignment.
+Up to 32 codes are
 saved on the board; several codes can share an action. The live log shows
 protocols, codes, repeats, matches, and raw timings without a serial console.
 The same tab shows reset reason and memory readings. Use Set 1% brightness to

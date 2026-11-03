@@ -1,7 +1,7 @@
 <div class="tab-ir-remote">
     <fieldset class="app-fieldset ir-panel">
       <legend>IR remote</legend>
-      <p>Choose an action, click Add code, then press a remote button. Add more codes to use other buttons or remotes for the same action.</p>
+      <p>Choose an action, click Add code, then press and release the same button twice, with a brief pause between presses. Two matching captures are required. Add more codes to use other buttons or remotes for the same action.</p>
       @if (socketService.lastClose; as close) {
         <p class="ir-hint">Last connection close: {{ close.code }} · {{ close.reason || 'No reason supplied by the browser' }}</p>
       }
