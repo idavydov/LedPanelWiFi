@@ -1199,6 +1199,24 @@ uint8_t  hue_speed=10;
 // adjust these values to move along the x or y axis between frames
 uint16_t x_speed, y_speed;
 
+void drawFlickerFrame() {
+  // Generate the same noise planes as FastLED's fill_2dnoise16(), but draw
+  // through the coordinate map instead of assuming contiguous physical slots.
+  uint8_t values[pHEIGHT][pWIDTH];
+  uint8_t hues[pHEIGHT][pWIDTH];
+  memset(values, 0, sizeof(values));
+  memset(hues, 0, sizeof(hues));
+  fill_raw_2dnoise16into8((uint8_t*)values, pWIDTH, pHEIGHT, octaves,
+                        q44(2, 0), 171, 1, xf, xscale, yf, yscale, v_time);
+  fill_raw_2dnoise8((uint8_t*)hues, pWIDTH, pHEIGHT, hue_octaves,
+                    hxy, hue_scale, hxy, hue_scale, hue_time);
+  for (int y = 0; y < pHEIGHT; ++y) {
+    for (int x = 0; x < pWIDTH; ++x) {
+      drawPixelXY(x, y, CRGB(CHSV(hues[pHEIGHT - 1 - y][pWIDTH - 1 - x], 196, values[y][x])));
+    }
+  }
+}
+
 void flickerRoutine() {
   if (loadingFlag) {
 
@@ -1212,6 +1230,7 @@ void flickerRoutine() {
     
     // modeCode = MC_FLICKER;
     loadingFlag = false;
+    FastLED.clear();
     x_speed = (pWIDTH > pHEIGHT ? 1111 : 331);
     y_speed = (pWIDTH > pHEIGHT ? 331 : 1111);
 
@@ -1226,11 +1245,7 @@ void flickerRoutine() {
   // adjust the intra-frame time values
   hue_speed = map8(255-getEffectSpeedValue(MC_FLICKER), 1, 5);
 
-  // fill the led array 2/16-bit noise values
-  fill_2dnoise16(leds, pWIDTH, pHEIGHT, (sMATRIX_TYPE == 0),
-                octaves, xf, xscale, yf, yscale, v_time,
-                hue_octaves, hxy, hue_scale, hxy, hue_scale, hue_time, 
-                false);
+  drawFlickerFrame();
  
   xf += x_speed;
   yf += y_speed;
