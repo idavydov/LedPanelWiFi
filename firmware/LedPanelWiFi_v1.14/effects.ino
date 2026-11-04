@@ -11,6 +11,38 @@ uint16_t XYfunc(uint16_t x, uint16_t y, [[maybe_unused]] uint16_t width, [[maybe
   return (uint16_t)getPixelNumber(x, y);
 }
 
+void blendPixelXY(int8_t x, int8_t y, CRGB color, uint8_t amount) {
+  int16_t pixel = getPixelNumber(x, y);
+  if (pixel >= 0) nblend(leds[pixel], color, amount);
+}
+
+void blurMappedFrame(uint8_t amount) {
+  // FastLED's blur2d dereferences XY() even for missing cells (-1).
+  // Use its row/column algorithm with holes treated as black, absorbing edges.
+  uint8_t keep = 255 - amount;
+  uint8_t seep = amount >> 1;
+  for (uint8_t axis = 0; axis < 2; ++axis) {
+    uint8_t lines = axis == 0 ? pHEIGHT : pWIDTH;
+    uint8_t length = axis == 0 ? pWIDTH : pHEIGHT;
+    for (uint8_t line = 0; line < lines; ++line) {
+      CRGB carry = CRGB::Black;
+      int16_t previous = -1;
+      for (uint8_t pos = 0; pos < length; ++pos) {
+        int16_t pixel = axis == 0 ? getPixelNumber(pos, line) : getPixelNumber(line, pos);
+        CRGB current = pixel >= 0 ? leds[pixel] : CRGB::Black;
+        CRGB part = current;
+        part.nscale8(seep);
+        current.nscale8(keep);
+        current += carry;
+        if (previous >= 0) leds[previous] += part;
+        if (pixel >= 0) leds[pixel] = current;
+        carry = part;
+        previous = pixel;
+      }
+    }
+  }
+}
+
 // ---------------------------------------------
 
 uint8_t USE_SEGMENTS = 0;
@@ -107,11 +139,7 @@ void lightBallsRoutine() {
   // an automatic trend toward black -- by design.
   uint8_t blurAmount = map(effectBrightness, 32,255, 65,91);
   uint8_t actualBrightness = map(effectBrightness, 32,255, 125,250);
-  #if FASTLED_VERSION >= 3009000
-    blur2d(leds, pWIDTH, pHEIGHT, blurAmount, xyMap);
-  #else 
-    blur2d(leds, pWIDTH, pHEIGHT, blurAmount);
-  #endif
+  blurMappedFrame(blurAmount);
 
   // The color of each point shifts over time, each at a different speed.
   uint32_t ms = millis();
@@ -208,11 +236,7 @@ void swirlRoutine() {
 
   uint8_t blurAmount = map(effectBrightness, 32,255, 65,91);
   uint8_t actualBrightness = map(effectBrightness, 32,255, 125,250);
-  #if FASTLED_VERSION >= 3009000
-    blur2d(leds, pWIDTH, pHEIGHT, blurAmount, xyMap);
-  #else 
-    blur2d(leds, pWIDTH, pHEIGHT, blurAmount);
-  #endif
+  blurMappedFrame(blurAmount);
 
   uint32_t ms = millis();  
   float spd = (map8(255-getEffectSpeedValue(MC_SWIRL), 50, 100) / 100.0) / (USE_SEGMENTS != 0 ? 1 : (float)seg_num);
@@ -1886,7 +1910,7 @@ void pacifica_one_layer( CRGBPalette16& p, uint16_t cistart, uint16_t wavescale,
   uint16_t waveangle = ioff;
   uint16_t wavescale_half = (wavescale / 2) + 20;
 
-  for( uint16_t i = 0; i < NUM_LEDS; i++) {
+  for( uint16_t i = 0; i < uint16_t(pWIDTH) * pHEIGHT; i++) {
     waveangle += 250;
     uint16_t s16 = sin16( waveangle ) + 32768;
     uint16_t cs = scale16( s16 , wavescale_half ) + wavescale_half;
@@ -1907,7 +1931,7 @@ void pacifica_add_whitecaps()
   uint8_t basethreshold = beatsin8( 9, 55, 65);
   uint8_t wave = beat8( 7 );
   
-  for( uint16_t i = 0; i < NUM_LEDS; i++) {
+  for( uint16_t i = 0; i < uint16_t(pWIDTH) * pHEIGHT; i++) {
     uint8_t threshold = scale8( sin8( wave), 20) + basethreshold;
     wave += 7;
     uint8_t px = i % pWIDTH;
@@ -1927,7 +1951,7 @@ void pacifica_add_whitecaps()
 // Deepen the blues and greens
 void pacifica_deepen_colors() {
   
-  for( uint16_t i = 0; i < NUM_LEDS; i++) {
+  for( uint16_t i = 0; i < uint16_t(pWIDTH) * pHEIGHT; i++) {
     uint8_t px = i % pWIDTH;
     uint8_t py = i / pWIDTH;
     idx = getPixelNumber(px, py);
@@ -1945,6 +1969,7 @@ void shadowsRoutine() {
   if (loadingFlag) {
     // modeCode = MC_SHADOWS;
     loadingFlag = false;
+    FastLED.clear();
   }
 
   static uint16_t sPseudotime = 0;
@@ -1969,7 +1994,7 @@ void shadowsRoutine() {
   sHue16 += deltams * beatsin88( 400, 5,9);
   uint16_t brightnesstheta16 = sPseudotime;
 
-  for( uint16_t i = 0 ; i < NUM_LEDS; i++) {
+  for( uint16_t i = 0 ; i < uint16_t(pWIDTH) * pHEIGHT; i++) {
     hue16 += hueinc16;
     uint8_t hue8 = hue16 / 256;
 
@@ -1983,7 +2008,7 @@ void shadowsRoutine() {
     CRGB newcolor = CHSV( hue8, sat8, map8(bri8, map(effectBrightness, 32, 255, 32,125), map(effectBrightness, 32,255, 125,250))); 
     
     uint16_t pixelnumber = i;
-    pixelnumber = (NUM_LEDS-1) - pixelnumber;
+    pixelnumber = (uint16_t(pWIDTH) * pHEIGHT - 1) - pixelnumber;
     
     uint8_t px = pixelnumber % pWIDTH;
     uint8_t py = pixelnumber / pWIDTH;
@@ -2360,10 +2385,10 @@ void munchRoutine() {
   for (uint8_t x = 0; x < minDimLocal; x++) {
     for (uint8_t y = 0; y < minDimLocal; y++) {
       CRGB color = (x ^ y ^ flip) < count ? ColorFromPalette(RainbowColors_p, ((x ^ y) << rnd) + generation, effectBrightness) : CRGB::Black;
-      if (x < pWIDTH and y < pHEIGHT) leds[XY(x, y)] = color;
-      if (x + minDimLocal < pWIDTH and y < pHEIGHT) leds[XY(x + minDimLocal, y)] = color;
-      if (y + minDimLocal < pHEIGHT and x < pWIDTH) leds[XY(x, y + minDimLocal)] = color;
-      if (x + minDimLocal < pWIDTH and y + minDimLocal < pHEIGHT) leds[XY(x + minDimLocal, y + minDimLocal)] = color;
+      if (x < pWIDTH and y < pHEIGHT) drawPixelXY(x, y, color);
+      if (x + minDimLocal < pWIDTH and y < pHEIGHT) drawPixelXY(x + minDimLocal, y, color);
+      if (y + minDimLocal < pHEIGHT and x < pWIDTH) drawPixelXY(x, y + minDimLocal, color);
+      if (x + minDimLocal < pWIDTH and y + minDimLocal < pHEIGHT) drawPixelXY(x + minDimLocal, y + minDimLocal, color);
     }
   }
 
@@ -2423,7 +2448,7 @@ void rain(uint8_t backgroundDepth, uint8_t spawnFreq, uint8_t tailLength, bool s
     // Step 3. Map from tempMatrix cells to LED colors
     for (uint8_t y = 0; y < pHEIGHT; y++) {
       if (noise3d[x + y * pWIDTH] >= backgroundDepth) {  // Don't write out empty cells
-        leds[XY(x,y)] = ColorFromPalette(rain_p, noise3d[x + y * pWIDTH], effectBrightness);
+        drawPixelXY(x,y, ColorFromPalette(rain_p, noise3d[x + y * pWIDTH], effectBrightness));
       }
     }
 
@@ -2434,14 +2459,14 @@ void rain(uint8_t backgroundDepth, uint8_t spawnFreq, uint8_t tailLength, bool s
       uint8_t v = noise3d[x]; // [x][0]
 
       if (j >= backgroundDepth) {
-        leds[XY(wrapX(x-2),0)] = ColorFromPalette(rain_p, j/3, effectBrightness);
-        leds[XY(wrapX(x+2),0)] = ColorFromPalette(rain_p, j/3, effectBrightness);
+        drawPixelXY(wrapX(x-2),0, ColorFromPalette(rain_p, j/3, effectBrightness));
+        drawPixelXY(wrapX(x+2),0, ColorFromPalette(rain_p, j/3, effectBrightness));
         line[x] = 0;   // Reset splash
       }
 
       if (v >= backgroundDepth) {
-        leds[XY(wrapX(x-1),1)] = ColorFromPalette(rain_p, v/2, effectBrightness);
-        leds[XY(wrapX(x+1),1)] = ColorFromPalette(rain_p, v/2, effectBrightness);
+        drawPixelXY(wrapX(x-1),1, ColorFromPalette(rain_p, v/2, effectBrightness));
+        drawPixelXY(wrapX(x+1),1, ColorFromPalette(rain_p, v/2, effectBrightness));
         line[x] = v; // Prep splash for next frame
       }
     }
@@ -2460,21 +2485,21 @@ void rain(uint8_t backgroundDepth, uint8_t spawnFreq, uint8_t tailLength, bool s
               uint8_t dir = random8(4);
               switch (dir) {
                 case 0:
-                  leds[XY(lx+1,ly-1)] = lightningColor;
+                  drawPixelXY(lx+1,ly-1, lightningColor);
                   lightning[(lx+1) + (ly-1) * pWIDTH] = 255; // move down and right
                 break;
                 case 1:
-                  leds[XY(lx,ly-1)] = CRGB(128,128,128);     // я без понятия, почему у верхней молнии один оттенок, а у остальных - другой
+                  drawPixelXY(lx,ly-1, CRGB(128,128,128));     // я без понятия, почему у верхней молнии один оттенок, а у остальных - другой
                   lightning[lx + (ly-1) * pWIDTH] = 255;     // move down
                 break;
                 case 2:
-                  leds[XY(lx-1,ly-1)] = CRGB(128,128,128);
+                  drawPixelXY(lx-1,ly-1, CRGB(128,128,128));
                   lightning[(lx-1) + (ly-1) * pWIDTH] = 255; // move down and left
                 break;
                 case 3:
-                  leds[XY(lx-1,ly-1)] = CRGB(128,128,128);
+                  drawPixelXY(lx-1,ly-1, CRGB(128,128,128));
                   lightning[(lx-1) + (ly-1) * pWIDTH] = 255; // fork down and left
-                  leds[XY(lx-1,ly-1)] = CRGB(128,128,128);
+                  drawPixelXY(lx-1,ly-1, CRGB(128,128,128));
                   lightning[(lx+1) + (ly-1) * pWIDTH] = 255; // fork down and right
                 break;
               }
@@ -2499,7 +2524,7 @@ void rain(uint8_t backgroundDepth, uint8_t spawnFreq, uint8_t tailLength, bool s
           uint8_t noiseData = qsub8(inoise8(noiseX + xoffset,noiseY + yoffset,noiseZ),16);
           noiseData = qadd8(noiseData,scale8(noiseData,39));
           cloud[x * cloudHeight + z] = scale8( cloud[x * cloudHeight + z], dataSmoothing) + scale8( noiseData, 256 - dataSmoothing);
-          nblend(leds[XY(x,pHEIGHT-z-1)], ColorFromPalette(rainClouds_p, cloud[x * cloudHeight + z], effectBrightness), (cloudHeight-z)*(250/cloudHeight));
+          blendPixelXY(x, pHEIGHT-z-1, ColorFromPalette(rainClouds_p, cloud[x * cloudHeight + z], effectBrightness), (cloudHeight-z)*(250/cloudHeight));
         }
       } else { 
         DEBUGLN("cloud malloc failed"); 
@@ -2600,7 +2625,7 @@ void fire2Routine() {
     // Step 4.  Map from heat cells to LED colors
     // Blend new data with previous frame. Average data between neighbouring pixels
     for (uint8_t y = 0; y < pHEIGHT; y++)
-      nblend(leds[XY(x,y)], ColorFromPalette(HeatColors_p, ((noise3d[x + y * pWIDTH] * 0.7) + (noise3d[wrapX(x+1) + y * pWIDTH]*0.3)), effectBrightness), fireSmoothing);
+      blendPixelXY(x, y, ColorFromPalette(HeatColors_p, ((noise3d[x + y * pWIDTH] * 0.7) + (noise3d[wrapX(x+1) + y * pWIDTH]*0.3)), effectBrightness), fireSmoothing);
   }
 }
 

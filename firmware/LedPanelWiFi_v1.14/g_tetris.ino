@@ -213,7 +213,7 @@ void checkAndClear() {
       // заполняем весь блок найденных строк белым цветом слева направо
       for (uint8_t X = x_st; X <= x_en; X++) {
         for (uint8_t i = 0; i < linesToClear; i++) {
-          leds[getPixelNumber(X, lineNum + i)] = CHSV(0, 0, 255);         // закрашиваем его белым
+          drawPixelXY(X, lineNum + i, CHSV(0, 0, 255));         // закрашиваем его белым
         }
         FastLEDshow();
         delay(5);     // задержка между пикселями слева направо
