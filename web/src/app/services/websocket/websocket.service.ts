@@ -1,5 +1,5 @@
 import {Injectable, OnDestroy} from '@angular/core';
-import {BehaviorSubject, catchError, interval, Observable, Observer, Subject, throwError as observableThrowError, Subscription, takeUntil, takeWhile, tap} from 'rxjs';
+import {BehaviorSubject, catchError, interval, Observable, Subject, throwError as observableThrowError, Subscription, takeUntil, tap} from 'rxjs';
 import {distinctUntilChanged, filter, map, share} from 'rxjs/operators';
 import {WebSocketSubject, WebSocketSubjectConfig} from 'rxjs/webSocket';
 import {environment} from "../../../environments/environment";
@@ -51,27 +51,17 @@ export class WebsocketService extends Base implements IWebsocketService, OnDestr
 
   public host: string = environment.production ? window.location.hostname : '192.168.0.100';
 
-  private readonly config: WebSocketSubjectConfig<IWsMessage<any>>;
-
-  // Observable для реконнекта по interval
-  private reconnection$: Observable<number> | null = null;
   private websocket$: WebSocketSubject<IWsMessage<any>> | null = null;
-
-  // сообщает, когда происходит коннект и реконнект
-  private connection$: Observer<boolean> | null = null;
-
-  // вспомогательный Observable для работы с подписками на сообщения
-  private wsMessages$: Subject<IWsMessage<any>>;
-
+  private connectionState$ = new BehaviorSubject<boolean>(false);
+  private wsMessages$ = new Subject<IWsMessage<any>>();
   private url = `ws://${this.host}/ws`;
-
   private pingInterval = 30000;
   private reconnectInterval = 5000;
-  private last_ping_time: number = Date.now();
-  private sentPing = false;
-  private gotPong = false;
-
-  private webSocketSubscription!: Subscription;
+  private lastReceivedAt = Date.now();
+  private lastHeartbeatAt = Date.now();
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private webSocketSubscription: Subscription | null = null;
+  private destroyed = false;
 
   // -------------------------------------
 
@@ -87,150 +77,104 @@ export class WebsocketService extends Base implements IWebsocketService, OnDestr
 
   constructor(private httpClient: HttpClient) {
     super();
-
-    this.config = {
-      url: this.url,
-      closeObserver: {
-        next: (event: CloseEvent) => {
-          this.lastClose = {code: event.code, reason: event.reason};
-          console.log('WebSocket disconnected!');
-          this.websocket$ = null;
-          this.connection$?.next(false);
-          this.reconnect();
-        }
-      },
-      openObserver: {
-        next: (event: Event) => {
-          console.log('WebSocket connected!');
-          this.connection$?.next(true);
-          this.ping();
-          this.firstConnect = false;
-        }
+    this.status$ = this.connectionState$.asObservable().pipe(distinctUntilChanged());
+    this.status$.pipe(takeUntil(this.destroy$)).subscribe(connected => {
+      if (this.isConnected !== connected) {
+        this.isConnected = connected;
+        this.isConnected$.next(connected);
       }
-    };
-
-    // статус соединения
-    this.status$ = new Observable<boolean>((observer) => {
-      this.connection$ = observer;
-    }).pipe(share(), distinctUntilChanged());
-
-    this.status$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((isConnected) => {
-        if (this.isConnected !== isConnected) {
-          this.isConnected = isConnected;
-          this.isConnected$.next(this.isConnected);
-        }
-        if (isConnected) {
-          document.body.classList.remove('noscroll');
-        } else {
-          document.body.classList.add('noscroll');
-        }
-      });
-
-    // говорим, что что-то пошло не так + проверка полученных в сокет данных
-    this.wsMessages$ = new Subject<IWsMessage<any>>();
-    this.wsMessages$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (data: IWsMessage<any>) => {
-          console.log(data);
-        },
-        error: (error: ErrorEvent) => {
-          console.error('WebSocket error!', error);
-          this.connection$?.next(false);
-        }
-      });
-
-    // Интервал проверки соединения - отвечает ли сервер (ping-pong)
-    interval(this.pingInterval)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        if (this.isConnected) {
-          if (this.sentPing && !this.gotPong && (Date.now() - this.last_ping_time) >= this.pingInterval) {
-            // Сбросить флаги
-            this.sentPing = false;
-            this.last_ping_time = Date.now();
-            this.connection$?.next(false);
-            this.disconnect();
-          }
-        }
-        this.ping();
-      });
-
+      document.body.classList.toggle('noscroll', !connected);
+    });
+    interval(this.pingInterval).pipe(takeUntil(this.destroy$)).subscribe(() => this.checkHeartbeat());
     this.connect();
   }
 
   private connect(): void {
-    this.websocket$ = new WebSocketSubject(this.config); // создаем
-    // если есть сообщения, шлем их в дальше,
-    // если нет, ожидаем
-    // реконнектимся, если получили ошибку
-    this.webSocketSubscription = this.websocket$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (message: IWsMessage<any>) => this.wsMessages$.next(message),
-        error: (error: Event) => {
-          if (!this.websocket$) {
-            // run reconnect if errors
-            this.connection$?.next(false);
-            this.reconnect();
-          }
-        }
-      });
+    if (this.destroyed || this.websocket$) return;
+    let socket: WebSocketSubject<IWsMessage<any>>;
+    const config: WebSocketSubjectConfig<IWsMessage<any>> = {
+      url: this.url,
+      openObserver: {next: () => {
+        if (this.websocket$ !== socket) return;
+        this.lastReceivedAt = this.lastHeartbeatAt = Date.now();
+        this.connectionState$.next(true);
+        this.firstConnect = false;
+        this.ping();
+      }},
+      closeObserver: {next: (event: CloseEvent) => {
+        if (this.websocket$ !== socket) return;
+        this.lastClose = {code: event.code, reason: event.reason};
+        this.connectionClosed(socket);
+      }},
+    };
+    socket = new WebSocketSubject(config);
+    this.websocket$ = socket;
+    const subscription = socket.pipe(takeUntil(this.destroy$)).subscribe({
+      next: message => {
+        if (this.websocket$ !== socket) return;
+        this.pong(); // Any received frame proves the connection is alive.
+        this.wsMessages$.next(message);
+      },
+      error: () => {
+        if (this.websocket$ !== socket) return;
+        this.lastClose = {code: 1006, reason: 'WebSocket transport failed'};
+        this.connectionClosed(socket);
+      },
+      complete: () => this.connectionClosed(socket),
+    });
+    if (this.websocket$ === socket) this.webSocketSubscription = subscription;
+    else subscription.unsubscribe();
+  }
+
+  private connectionClosed(socket: WebSocketSubject<IWsMessage<any>>): void {
+    if (this.websocket$ !== socket) return; // Ignore late events from a replaced socket.
+    this.websocket$ = null;
+    this.webSocketSubscription?.unsubscribe();
+    this.webSocketSubscription = null;
+    this.connectionState$.next(false);
+    this.reconnect();
   }
 
   private disconnect(): void {
-    this.webSocketSubscription.unsubscribe();
+    const socket = this.websocket$;
+    this.websocket$ = null;
+    this.webSocketSubscription?.unsubscribe();
+    this.webSocketSubscription = null;
+    socket?.complete();
+    this.connectionState$.next(false);
+    this.reconnect();
   }
 
   private reconnect(): void {
-    // Создаем interval со значением из reconnectInterval
-    this.reconnection$ = interval(this.reconnectInterval)
-      .pipe(takeWhile(() => !this.websocket$));
-
-    // Пытаемся подключиться пока не подключимся
-    this.reconnection$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: () => this.connect(),
-        complete: () => {
-          // Subject complete if reconnect attempts ending
-          this.reconnection$ = null;
-          if (!this.websocket$) {
-            this.wsMessages$.complete();
-            this.connection$?.complete();
-          }
-        },
-        error: (error) => {
-          console.log(error);
-        }
-      });
+    if (this.destroyed || this.websocket$ || this.reconnectTimer !== null) return;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, this.reconnectInterval);
   }
 
-  /*
-  * send ping message to client
-  * */
-  private ping() {
-    if (this.websocket$) {
-      this.websocket$?.next({e: 'cmd', d: '$6 7|FM|UP'});
-      this.sentPing = true;
-      this.gotPong = false;
-      this.last_ping_time = Date.now();
-    } else if (this.reconnection$ == null) {
-      this.reconnect();
+  private checkHeartbeat(): void {
+    const now = Date.now();
+    const lateTimer = now - this.lastHeartbeatAt > this.pingInterval * 2;
+    this.lastHeartbeatAt = now;
+    // Background/suspended browser tabs get a fresh probe after waking up.
+    if (lateTimer) this.lastReceivedAt = now;
+    if (this.isConnected && now - this.lastReceivedAt >= this.pingInterval * 2) {
+      this.lastClose = {code: 0, reason: 'No server data for 60 seconds (client heartbeat timeout)'};
+      this.disconnect();
+      return;
     }
+    this.ping();
   }
 
-  /*
-  * answer on ping received
-  * */
-  public pong() {
-    this.sentPing = false;
-    this.gotPong = false;
-    if (!this.isConnected) {
-      this.connection$?.next(true);
-    }
+  private ping(): void {
+    if (this.isConnected && this.websocket$) {
+      this.websocket$.next({e: 'cmd', d: '$6 7|FM|UP'});
+    } else if (!this.websocket$) this.reconnect();
+  }
+
+  public pong(): void {
+    this.lastReceivedAt = Date.now();
   }
 
   /*
@@ -371,7 +315,13 @@ export class WebsocketService extends Base implements IWebsocketService, OnDestr
   }
 
   override ngOnDestroy() {
-    this.webSocketSubscription.unsubscribe();
+    this.destroyed = true;
+    if (this.reconnectTimer !== null) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    this.disconnect();
+    this.wsMessages$.complete();
+    this.connectionState$.complete();
+    this.isConnected$.complete();
     super.ngOnDestroy();
   }
 }

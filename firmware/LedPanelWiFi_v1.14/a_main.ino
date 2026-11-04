@@ -256,7 +256,6 @@ void process() {
   // Проверить необходимость отправки сообщения об изменении состояния клиенту Web
   if (changed_keys.length() > 1) {
     SendCurrentState(changed_keys);
-    changed_keys.clear();
   }
       
   #if defined(PANEL_PROFILE_S2_MINI)

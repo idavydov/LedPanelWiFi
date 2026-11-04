@@ -351,6 +351,7 @@
 #include "network_security.h" // Required administrator credentials, loaded after a_def_pass.h
 #include "a_def_soft.h"     // Определение параметров эффектов, переменных программы и т.п.
 #include "timeProcessor.h"  // Класс менеджмента времени (NTP, работа с временем)
+#include "web_response_helpers.h"
 #if defined(PANEL_PROFILE_S2_MINI)
 #include <esp_task_wdt.h>
 #include <esp_attr.h>

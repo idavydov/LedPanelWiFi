@@ -252,15 +252,12 @@ void SendWebKey(const String& key, const String& value) {
   // Если key - ключ с возможно большим значением - отправлять как готовый json-объект
   // Если key - обычный ключ - удалить начальную и конечную фигурные скобки - тогда это будет
   // просто составная часть для накопительного объекта json
-  #if defined(MAX_BUFFER_SIZE)  
-    uint16_t max_part_len = MAX_BUFFER_SIZE - 49;                  // <-- ??? должно быть нечетным, иначе почему-то substring(0,max_part_len) рвет UTF8 строку посреди символа и 1-я часть строки в конце получает "обрубок"
+  #if defined(MAX_BUFFER_SIZE)
+    const uint16_t max_part_len = MAX_BUFFER_SIZE - 49;
   #else
-    uint16_t max_part_len = 511;                                   // <-- ??? должно быть нечетным, иначе почему-то substring(0,max_part_len) рвет UTF8 строку посреди символа и 1-я часть строки в конце получает "обрубок"
+    const uint16_t max_part_len = 511;
   #endif
-                                                                   //         с нераспознаваемым символом на конце, вторая часть - "обрубок" с нераспазноваемым символом в начале. Потом такая строка упаковывается в JSON 
-                                                                   //         принимая которую WebSocket говорит что фрейм не может быть распознан как UTF8 текст и рвет соединение Web-сокета,
-                                                                   //         что в логе браузера - постоянные "клиент был отключен" и все новые и новые попытки переподключения 
-  // Топик сообщения - основной топик плюс ключ (имя параметра)
+  // Every WebSocket text frame must contain complete UTF-8 characters.
   if (value.length() <= max_part_len) {
     // Значение все целиком влазит в буфер - отправляем за раз всю строку
     doc.clear();  
@@ -286,14 +283,16 @@ void SendWebKey(const String& key, const String& value) {
         break;
       } else {
         tmp = (first ? "`!`" : "`>`");                // '`!`' - признак начала незавершенной строки
-        tmp += str.substring(0, max_part_len);        // '`>`' - признак продолжения незавершенной строки
+        size_t part_len = webUtf8Prefix(str.c_str(), str.length(), max_part_len);
+        if (!part_len) return;
+        tmp += str.substring(0, part_len);        // '`>`' - признак продолжения незавершенной строки
         doc.clear();
         doc[key] = tmp;
         serializeJson(doc, out); 
         doc.clear();   
         prepareAndSendMessage(out, topic);
         out.clear();  
-        str = str.substring(max_part_len);
+        str = str.substring(part_len);
         first = false;
       }
     }  

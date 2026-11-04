@@ -883,36 +883,21 @@ void notifyUnknownCommand(const String& text) {
 
 // Отправка в WEB канал - текущие значения переменных
 void SendCurrentState(String& keys) {
-
-  // Эта функция SendCurrentState() вызывается из одного места, после вызова стрка changed_keys, передаваемая сюда по адресу обнуляется
-  // Поэтому мы можем не создавать ноаве копии строки, а изменять ее каа нам нужно тут - все равно по вызоде из функции она будет обнклена
-  // Если строка начинается с '|' - удалить начальный '|'
-  // Если строка заканчивается с '|' - удалить последний '|'
-  if (keys.charAt(0) == '|') keys.setCharAt(0,' ');
-  if (keys.charAt(keys.length() - 1) == '|') keys.setCharAt(keys.length() - 1, ' ');
-  keys.trim();
-    
-  int16_t pos_start = 0;
-  int16_t pos_end = keys.indexOf('|', pos_start);
-  int16_t len = keys.length();
-  if (pos_end < 0) pos_end = len;
-
-  String key; key.reserve(6);
-  String s_tmp; s_tmp.reserve(OUT_CMD_SIZE);
-   
-  // Строка keys содержит ключи запрашиваемых данных, разделенных знаком '|', например "CE|CC|CO|CK|NC|SC|C1|DC|DD|DI|NP|NT|NZ|NS|DW|OF"
-  while (pos_start < len && pos_end >= pos_start) {
-    if (pos_end > pos_start) {      
-      key = keys.substring(pos_start, pos_end);
-      if (key.length() > 0) {
-        s_tmp = getStateValue(key, thisMode, true);
-        SendWebKey(key, s_tmp);
-      }      
-    }
-    yield();
-    pos_start = pos_end + 1;
-    pos_end = keys.indexOf('|', pos_start);
-    if (pos_end < 0) pos_end = len;
+  if (!ws.count()) { keys.clear(); return; }
+  // A page requests many settings. Send a small batch, leaving the remainder
+  // for later animation-loop iterations and waiting for socket queue capacity.
+  for (uint8_t sent = 0; sent < 2; ++sent) {
+    if (!ws.availableForWriteAll()) return;
+    while (keys.length() && (keys.charAt(0) == '|' || keys.charAt(0) == ' ')) keys.remove(0, 1);
+    if (!keys.length()) return;
+    int end = keys.indexOf('|');
+    if (end < 0) end = keys.length();
+    String key = keys.substring(0, end);
+    keys.remove(0, end); // Keep the next leading '|' for addKeyToChanged() deduplication.
+    if (keys == "|") keys.clear();
+    key.trim();
+    // Remove before evaluating: getters may request further changed keys.
+    if (key.length()) SendWebKey(key, getStateValue(key, thisMode, true));
   }
 }
 

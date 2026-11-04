@@ -1,5 +1,5 @@
 import {Injectable, OnDestroy} from '@angular/core';
-import {BehaviorSubject, debounceTime, takeUntil, timer} from 'rxjs';
+import {BehaviorSubject, catchError, debounceTime, from, map, mergeMap, of, takeUntil, timer} from 'rxjs';
 import {EffectModel, IEffectModel} from '../../models/effect.model';
 import {StateModel} from '../../models/state.model';
 import {CommonService, MessageType} from '../common/common.service';
@@ -149,7 +149,7 @@ export class ManagementService extends Base implements OnDestroy {
       });
 
     timer(this.checkInterval, this.checkInterval).pipe(takeUntil(this.destroy$)).subscribe(() => {
-      if (!isNullOrUndefinedOrEmpty(this.stateValues) && Date.now() - this.last_message_time > (this.checkInterval / 1000)) {
+      if (!isNullOrUndefinedOrEmpty(this.stateValues) && Date.now() - this.last_message_time > this.checkInterval) {
         let req = '';
         for (const key of this.stateValues.keys()) {
           if (!this.stateValues.get(key)) {
@@ -697,20 +697,18 @@ export class ManagementService extends Base implements OnDestroy {
       this.text_lines.push('');
     }
 
-    const indecies = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    for (let i = 0; i < 36; i++) {
-      const filePath = `a/txt/${indecies[i]}?nocache=${Date.now()}`;
-      const headers = new HttpHeaders().set('Cache-Control', 'no-cache, no-store, must-revalidate, post-check=0, pre-check=0').set('Pragma', 'no-cache').set('Expires', '0');
-      this.httpClient.get(filePath, {headers, responseType: 'text'})
-        .subscribe({
-          next: (text) => {
-            this.text_lines[i] = isNullOrUndefinedOrEmpty(text) ? '' : text.replace(/\u0000/g, ' ').trim();
-          },
-          error: (error) => {
-            // this.wsService.sendText(`$13 2 ${i};`);
-          }
-        });
-    }
+    const indices = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const headers = new HttpHeaders().set('Cache-Control', 'no-cache, no-store, must-revalidate, post-check=0, pre-check=0').set('Pragma', 'no-cache').set('Expires', '0');
+    from(Array.from(indices)).pipe(
+      mergeMap((index, i) => this.httpClient.get(`a/txt/${index}?nocache=${Date.now()}`,
+        {headers, responseType: 'text'}).pipe(
+          catchError(() => of('')),
+          map(text => ({i, text})),
+        ), 2),
+      takeUntil(this.destroy$),
+    ).subscribe(({i, text}) => {
+      this.text_lines[i] = isNullOrUndefinedOrEmpty(text) ? '' : text.replace(/\u0000/g, ' ').trim();
+    });
 
   }
 

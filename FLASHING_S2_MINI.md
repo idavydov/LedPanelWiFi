@@ -158,6 +158,12 @@ After a filesystem upload, reload the UI to fetch the new bundles. If the upload
 connect back, allow the uploader's incoming TCP connection on the local firewall;
 `--local-address` selects an interface on computers with multiple networks.
 
+If the UI says Connection lost while animations continue, check whether uptime
+continues too: a dropped WebSocket does not itself mean the board reset. The UI
+allows 60 seconds without server data before reconnecting and sends a fresh
+probe after a suspended browser resumes. Settings replies and initial text-file
+downloads are paced so opening the UI does not flood the panel with work.
+
 ## IR remote
 
 Connect VS1838B VCC to 3V3, GND to GND, and OUT to GPIO 5. In the IR remote tab,
