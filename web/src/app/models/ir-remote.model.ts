@@ -41,6 +41,7 @@ export interface IrState {
   brightnessRaw?: number;
   indexMapActive?: boolean;
   mappedSlots?: number;
+  outputSlots?: number;
   logSkipped?: number;
 }
 

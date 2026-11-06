@@ -11,11 +11,13 @@ import {formatLedPositions, LedPosition, parseLedPositions} from '../../models/l
 })
 export class LedMapperComponent extends Base implements OnInit, OnDestroy {
   width = 20; height = 10; slot = 1; x = 0; y = 0;
+  stringIndex = 0; stringCount = 1;
+  stringSlots = [1, 1];
   text = ''; entries: LedPosition[] = []; error = ''; status = '';
   identifying = false; ready = false; busy = false; dirty = false;
-  cells: {x: number; y: number; id?: number}[] = [];
+  cells: {x: number; y: number; id?: number; string?: number}[] = [];
   keyboardEnabled = false;
-  history: {text: string; slot: number; x: number; y: number}[] = [];
+  history: {text: string; slot: number; x: number; y: number; stringIndex: number; stringSlots: number[]}[] = [];
   private pending: LedPosition[] = [];
   private offset = 0;
   private awaiting = '';
@@ -30,11 +32,13 @@ export class LedMapperComponent extends Base implements OnInit, OnDestroy {
         const data = JSON.parse(raw);
         if (data.kind === 'state') {
           this.ready = true;
+          this.stringCount = data.strings === 2 ? 2 : 1;
+          if (this.stringIndex >= this.stringCount) this.selectString(0);
           if (!this.dirty) {
             this.width = data.width; this.height = data.height; this.text = data.text;
             this.validate();
           }
-          this.status = 'Mapper connected. Factory slots 1–200; origin (0,0) is bottom left.';
+          this.status = `Mapper connected: ${this.stringCount} string(s), 200 slots each. Origin (0,0) is bottom left.`;
         } else if (data.kind === 'error') {
           this.busy = false; this.error = data.error;
           if (data.op === 'identify') this.identifying = false;
@@ -72,9 +76,9 @@ export class LedMapperComponent extends Base implements OnInit, OnDestroy {
     this.cells = [];
     if (!Number.isInteger(this.width) || !Number.isInteger(this.height) || this.width < 8 || this.height < 8 ||
         this.width > 64 || this.height > 64 || this.width * this.height > 2048) return;
-    const positions = new Map(this.entries.map(entry => [`${entry.x},${entry.y}`, entry.id]));
+    const positions = new Map(this.entries.map(entry => [`${entry.x},${entry.y}`, entry]));
     for (let y = this.height - 1; y >= 0; y--) for (let x = 0; x < this.width; x++)
-      this.cells.push({x, y, id: positions.get(`${x},${y}`)});
+      this.cells.push({x, y, id: positions.get(`${x},${y}`)?.id, string: positions.get(`${x},${y}`)?.string});
   }
 
   edit(clearHistory = true) {
@@ -83,13 +87,23 @@ export class LedMapperComponent extends Base implements OnInit, OnDestroy {
   }
   identify() {
     if (!this.ready || !this.socket.isConnected || !Number.isInteger(this.slot) || this.slot < 1 || this.slot > 200) return;
-    this.identifying = true; this.send({op: 'identify', id: this.slot});
+    if (this.stringIndex >= this.stringCount) return;
+    this.identifying = true; this.send({op: 'identify', string: this.stringIndex, id: this.slot});
   }
   stop() { this.identifying = false; this.send({op: 'stop'}); }
   selectSlot(value: number) {
     this.slot = Number.isFinite(value) ? Math.max(1, Math.min(200, Math.trunc(value))) : 1;
-    const entry = this.entries.find(item => item.id === this.slot);
+    this.stringSlots[this.stringIndex] = this.slot;
+    const entry = this.entries.find(item => item.string === this.stringIndex && item.id === this.slot);
     if (entry) { this.x = entry.x; this.y = entry.y; }
+    if (this.identifying) this.identify();
+  }
+  selectString(index: number) {
+    if (this.busy || !this.ready || !this.socket.isConnected || !Number.isInteger(index) || index < 0 || index >= this.stringCount) return;
+    this.stringSlots[this.stringIndex] = this.slot;
+    this.stringIndex = index;
+    this.slot = this.stringSlots[index];
+    // Keep the shared anchor so neighboring LEDs can belong to either string.
     if (this.identifying) this.identify();
   }
   stepSlot(delta: number) {
@@ -114,13 +128,15 @@ export class LedMapperComponent extends Base implements OnInit, OnDestroy {
     const directions: Record<string, [number, number]> = {
       ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1],
     };
-    if (!directions[event.key] && !['+', '=', '-', '_', 'Enter', 'Escape'].includes(event.key)) return;
+    if (!directions[event.key] && !['+', '=', '-', '_', 'Enter', 'Escape', 'a', 'A', 'b', 'B'].includes(event.key)) return;
     event.preventDefault();
     if (event.repeat) return;
     if (directions[event.key]) this.moveAndAssign(...directions[event.key]);
     else if (event.key === '+' || event.key === '=') this.stepSlot(1);
     else if (event.key === '-' || event.key === '_') this.stepSlot(-1);
     else if (event.key === 'Enter') this.assign(true);
+    else if (event.key.toLowerCase() === 'a') this.selectString(0);
+    else if (event.key.toLowerCase() === 'b') this.selectString(1);
     else this.keyboardEnabled = false;
   }
   moveAndAssign(dx: number, dy: number) {
@@ -139,13 +155,16 @@ export class LedMapperComponent extends Base implements OnInit, OnDestroy {
   }
   assign(next = false) {
     if (this.error || this.busy || !this.ready || !this.socket.isConnected) return false;
-    const entries = [...this.entries.filter(item => item.id !== this.slot), {id: this.slot, x: this.x, y: this.y}];
+    const entries = [...this.entries.filter(item => item.string !== this.stringIndex || item.id !== this.slot),
+      {string: this.stringIndex, id: this.slot, x: this.x, y: this.y}];
     try {
       const text = formatLedPositions(entries);
       parseLedPositions(text, this.width, this.height);
-      this.history.push({text: this.text, slot: this.slot, x: this.x, y: this.y});
+      if (entries.some(item => item.string >= this.stringCount)) throw new Error('Install the two-string firmware before assigning string B.');
+      this.history.push({text: this.text, slot: this.slot, x: this.x, y: this.y,
+        stringIndex: this.stringIndex, stringSlots: [...this.stringSlots]});
       this.text = text; this.edit(false);
-      this.status = `Assigned slot ${this.slot} to (${this.x},${this.y}).`;
+      this.status = `Assigned ${this.stringIndex ? 'B' : 'A'}${this.slot} to (${this.x},${this.y}).`;
       if (next) {
         this.identifying = true;
         if (this.slot < 200) this.stepSlot(1);
@@ -162,19 +181,26 @@ export class LedMapperComponent extends Base implements OnInit, OnDestroy {
     const previous = this.history.pop();
     if (!previous) return;
     this.text = previous.text; this.slot = previous.slot; this.x = previous.x; this.y = previous.y;
+    this.stringIndex = previous.stringIndex; this.stringSlots = previous.stringSlots;
     this.edit(false); if (this.identifying) this.identify();
-    this.status = `Undid assignment; slot ${this.slot} selected.`;
+    this.status = `Undid assignment; ${this.stringIndex ? 'B' : 'A'}${this.slot} selected.`;
   }
   skip() {
     if (this.error || this.busy || !this.ready || !this.socket.isConnected) return;
-    this.history.push({text: this.text, slot: this.slot, x: this.x, y: this.y});
-    this.text = formatLedPositions(this.entries.filter(item => item.id !== this.slot));
+    this.history.push({text: this.text, slot: this.slot, x: this.x, y: this.y,
+      stringIndex: this.stringIndex, stringSlots: [...this.stringSlots]});
+    this.text = formatLedPositions(this.entries.filter(item => item.string !== this.stringIndex || item.id !== this.slot));
     this.edit(false); this.stepSlot(1);
   }
   chooseCell(x: number, y: number) {
     if (this.busy || !this.ready || !this.socket.isConnected) return;
     this.x = x; this.y = y;
+    const entry = this.entries.find(item => item.x === x && item.y === y);
+    if (entry && entry.string < this.stringCount) {
+      this.selectString(entry.string); this.selectSlot(entry.id);
+    }
   }
+  mappedOnString(index: number) { return this.entries.filter(item => item.string === index).length; }
   load() {
     this.history = []; this.keyboardEnabled = false;
     this.dirty = false; this.status = 'Loading active map…';
@@ -198,6 +224,9 @@ export class LedMapperComponent extends Base implements OnInit, OnDestroy {
   save() {
     this.validate();
     if (this.error || !this.ready || !this.socket.isConnected || this.busy || !this.entries.length) return;
+    if (this.entries.some(item => item.string >= this.stringCount)) {
+      this.error = 'Install the two-string firmware before saving string B.'; return;
+    }
     this.stop(); this.pending = [...this.entries]; this.offset = 0; this.busy = true;
     this.awaiting = 'begin'; this.deadline = Date.now() + 15000;
     this.status = 'Saving map…';
@@ -206,7 +235,8 @@ export class LedMapperComponent extends Base implements OnInit, OnDestroy {
   private sendNextChunk() {
     this.deadline = Date.now() + 15000;
     if (this.offset < this.pending.length) {
-      const rows = this.pending.slice(this.offset, this.offset + 10).map(item => [item.id, item.x, item.y]);
+      const rows = this.pending.slice(this.offset, this.offset + 10).map(item =>
+        this.stringCount === 2 ? [item.string, item.id, item.x, item.y] : [item.id, item.x, item.y]);
       this.offset += rows.length; this.awaiting = 'chunk'; this.send({op: 'chunk', rows});
     } else { this.awaiting = 'commit'; this.send({op: 'commit'}); }
   }

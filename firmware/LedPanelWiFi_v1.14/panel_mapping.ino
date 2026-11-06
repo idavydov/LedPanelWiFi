@@ -23,8 +23,13 @@ bool loadStoredMapping() {
   Preferences preferences;
   if (!preferences.begin("panel-layout", true)) return false;
   PanelMapRecord record;
-  bool ok = preferences.getBytesLength("map") == sizeof(record) &&
+  size_t size = preferences.getBytesLength("map");
+  bool ok = size == sizeof(record) &&
     preferences.getBytes("map", &record, sizeof(record)) == sizeof(record);
+  if (size == sizeof(PanelLegacyMapRecord)) {
+    PanelLegacyMapRecord legacy;
+    ok = preferences.getBytes("map", &legacy, sizeof(legacy)) == sizeof(legacy) && legacy.upgrade(record);
+  }
   preferences.end();
   if (!ok || !record.valid() || record.map.width != pWIDTH || record.map.height != pHEIGHT) return false;
   imap = new (std::nothrow) int16_t[uint16_t(pWIDTH) * pHEIGHT];
@@ -41,7 +46,7 @@ bool loadStoredMapping() {
 
 void mappingReply(uint32_t client, const char* kind, const char* op, const String& error = String()) {
   if (!ws.availableForWrite(client)) return;
-  DynamicJsonDocument payload(4096);
+  DynamicJsonDocument payload(8192);
   payload["kind"] = kind;
   payload["op"] = op;
   payload["error"] = error;
@@ -49,15 +54,16 @@ void mappingReply(uint32_t client, const char* kind, const char* op, const Strin
     payload["width"] = pWIDTH;
     payload["height"] = pHEIGHT;
     payload["slots"] = 200;
+    payload["strings"] = 2;
     payload["watchdogSeconds"] = 30;
     String text;
     // Export the actual active addressing, including ordinary segment wiring.
-    for (int id = 0; id < 200; ++id) {
+    for (int id = 0; id < PanelMapDraft::slots; ++id) {
       bool found = false;
       for (int y = 0; y < pHEIGHT && !found; ++y) {
         for (int x = 0; x < pWIDTH; ++x) {
           if (getPixelNumber(x, y) == id) {
-            text += String(id + 1) + ":" + x + "," + y + "\n";
+            text += String(id < 200 ? "A" : "B") + String(id % 200 + 1) + ":" + x + "," + y + "\n";
             found = true; break;
           }
         }
@@ -83,8 +89,10 @@ void handleMappingCommand(const String& text, uint32_t client) {
   if (op == "identify") {
     if (isTurnedOff) { mappingReply(client, "error", "identify", "Turn the panel on before identifying LEDs."); return; }
     int id = command["id"] | 0;
-    if (id < 1 || id > 200) { mappingReply(client, "error", "identify", "Use a slot from 1 to 200."); return; }
-    mappingSlot = id; mappingPreviewOwner = client; mappingPreviewAt = millis();
+    int string = command["string"] | 0;
+    if (!command["string"].isNull() && !command["string"].is<int>()) string = -1;
+    if (id < 1 || id > 200 || string < 0 || string > 1) { mappingReply(client, "error", "identify", "Use string A/B and a slot from 1 to 200."); return; }
+    mappingSlot = string * 200 + id; mappingPreviewOwner = client; mappingPreviewAt = millis();
     mappingReply(client, "ack", "identify"); return;
   }
   if (op == "stop") {
@@ -113,8 +121,11 @@ void handleMappingCommand(const String& text, uint32_t client) {
       mappingReply(client, "error", "chunk", "Invalid map chunk."); return;
     }
     for (JsonVariant row : rows) {
-      if (!row.is<JsonArray>() || row.size() != 3 || !row[0].is<int>() || !row[1].is<int>() || !row[2].is<int>() ||
-          !mappingDraft.assign(row[0].as<int>(), row[1].as<int>(), row[2].as<int>())) {
+      // Legacy triples address string A. New rows are [string, id, x, y].
+      int offset = row.size() == 4 ? 1 : 0;
+      if (!row.is<JsonArray>() || (row.size() != 3 && row.size() != 4) ||
+          (offset && !row[0].is<int>()) || !row[offset].is<int>() || !row[offset+1].is<int>() || !row[offset+2].is<int>() ||
+          !mappingDraft.assign(row[offset].as<int>(), row[offset+1].as<int>(), row[offset+2].as<int>(), offset ? row[0].as<int>() : 0)) {
         mappingUploading = false;
         mappingReply(client, "error", "chunk", "Duplicate or out-of-range slot/coordinate."); return;
       }

@@ -21,6 +21,11 @@ void allocateLeds() {
   //FastLED.addLeds<LED_CHIP, D3, COLOR_ORDER>(leds, 256, 256).setCorrection( TypicalLEDStrip );
 
   if (leds != NULL) {
+    #if defined(PANEL_PROFILE_S2_MINI)
+    // Each output always transmits 200 slots, independent of canvas dimensions.
+    FastLED.addLeds<LED_CHIP, LED_PIN, RGB>(leds, 0, 200).setCorrection(TypicalLEDStrip);
+    FastLED.addLeds<LED_CHIP, LED_PIN_B, RGB>(leds, 200, 200).setCorrection(TypicalLEDStrip);
+    #else
     for (int i = 1; i <= 4; i++) {
       // К сожалению функция FastLED.addLeds() в качестве чипсета, пина подключения и порядка цвета принимает только константы времени компиляции
       // Эти параметры не могут быть заданы переменными. ТО есть настройка LED_CHIP и COLOR_ORDER - в файле a_def_hard.h, LED_PIN - из переменной, но в switch - в каждую строку подставлена константа
@@ -30,14 +35,6 @@ void allocateLeds() {
       int16_t  led_start = getLedLineStartIndex(i);
       int16_t  led_count = getLedLineLength(i);
       int8_t   led_rgb = getLedLineRGB(i);
-      #if defined(PANEL_PROFILE_S2_MINI)
-      // The physical output does not grow/shrink with the logical canvas.
-      isLineUsed = i == 1;
-      led_pin = LED_PIN;
-      led_start = 0;
-      led_count = 200;
-      led_rgb = 1; // RGB
-      #endif
 
       EOrder   color_order = COLOR_ORDER;
 
@@ -488,6 +485,7 @@ void allocateLeds() {
         #endif
       }
     }
+    #endif
     // Максимальная частота вывода на ленту - 40 Гц
     FastLED.setMaxRefreshRate(40, true);
   }

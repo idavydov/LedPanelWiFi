@@ -32,6 +32,8 @@ uint32_t millis() { return now; }
 struct { bool connected=true; bool hasClient(uint32_t) { return connected; } } ws;
 bool storageWorks=true;
 PanelMapRecord stored;
+PanelLegacyMapRecord legacyStored;
+bool legacyStorage=false;
 int sMATRIX_TYPE=2, pWIDTH=8, pHEIGHT=8, mapListLen=0;
 int16_t* imap=nullptr;
 String mapFiles[5];
@@ -45,8 +47,8 @@ struct Preferences {
     std::memcpy(&stored,value,size); return size;
   }
   void end() {}
-  size_t getBytesLength(const char*) { return sizeof(stored); }
-  size_t getBytes(const char*, void* value, size_t size) { std::memcpy(value,&stored,size); return size; }
+  size_t getBytesLength(const char*) { return legacyStorage ? sizeof(legacyStored) : sizeof(stored); }
+  size_t getBytes(const char*, void* value, size_t size) { if(legacyStorage) std::memcpy(value,&legacyStored,size); else std::memcpy(value,&stored,size); return size; }
 };
 int savedWidth=0, savedHeight=0, savedType=0, commits=0;
 void putMatrixMapWidth(int n) { savedWidth=n; }
@@ -75,20 +77,35 @@ struct {
         source += function(firmware, 'bool renderMappingPreview(')
         source += r'''
 int main() {
+  PanelMapDraft full;
+  assert(full.dimensions(20,20));
+  for(int i=0;i<400;++i) assert(full.assign(i%200+1,i%20,i/20,i/200));
+  assert(full.count()==400 && full.valid() && full.at(19,19)==399);
+  assert(!full.assign(1,0,0,2) && !full.assign(201,0,0,0));
+  PanelMapDraft collisions;
+  assert(collisions.assign(7,1,1,0));
+  assert(!collisions.assign(7,1,1,1)); // coordinates cannot overlap across strings
+  assert(collisions.assign(7,2,1,1)); // factory ID can repeat on the other output
   PanelSlotMask visibility;
   visibility.include(6); visibility.include(199);
-  visibility.include(-1); visibility.include(200); // invalid/hole addresses never become visible
-  int physical[200]; for (auto& value : physical) value=255;
+  visibility.include(399); visibility.include(-1); visibility.include(400); // invalid/hole addresses never become visible
+  int physical[400]; for (auto& value : physical) value=255;
   visibility.apply(physical, 0);
-  for (int i=0;i<200;++i) assert(physical[i]==(i==6 || i==199 ? 255 : 0));
+  for (int i=0;i<400;++i) assert(physical[i]==(i==6 || i==199 || i==399 ? 255 : 0));
   // Reapply after a raw-buffer effect overwrites every slot.
   for (auto& value : physical) value=123;
   visibility.apply(physical, 0);
   assert(physical[0]==0 && physical[6]==123 && physical[199]==123);
-  assert(panelBufferSize(8,8)==200 && panelBufferSize(20,20)==400);
+  assert(panelBufferSize(8,8)==400 && panelBufferSize(20,20)==400);
   assert(!mappingDraft.dimensions(7,8) && !mappingDraft.dimensions(64,64));
   handleMappingCommand(R"({"op":"identify","id":200})",1);
   assert(renderMappingPreview() && leds[199].value==255 && leds[0].value==0 && FastLED.brightness==3);
+  now+=60;
+  handleMappingCommand(R"({"op":"identify","string":1,"id":200})",1);
+  assert(renderMappingPreview() && leds[399].value==255 && leds[199].value==0);
+  handleMappingCommand(R"({"op":"identify","string":2,"id":200})",1);
+  assert(lastKind=="error" && mappingSlot==400);
+  handleMappingCommand(R"({"op":"identify","id":200})",1);
   handleMappingCommand(R"({"op":"stop"})",2); // other browser cannot stop it
   assert(mappingSlot==200);
   now+=10001;
@@ -114,20 +131,29 @@ int main() {
   assert(lastKind=="error" && !needRestart && commits==0);
   storageWorks=true;
   handleMappingCommand(R"({"op":"begin","width":8,"height":8})",1);
-  handleMappingCommand(R"({"op":"chunk","rows":[[200,0,0],[7,1,1]]})",1);
+  handleMappingCommand(R"({"op":"chunk","rows":[[0,200,0,0],[0,7,1,1],[1,200,7,7]]})",1);
   handleMappingCommand(R"({"op":"commit"})",1);
   assert(lastKind=="saved" && needRestart && commits==1 && savedWidth==8 && savedHeight==8 && savedType==2);
-  assert(stored.valid() && stored.map.at(0,0)==199 && stored.map.at(7,7)==-1);
-  assert(loadStoredMapping() && imap[56]==199 && imap[49]==6 && imap[0]==-1);
+  assert(stored.valid() && stored.map.at(0,0)==199 && stored.map.at(7,7)==399);
+  assert(loadStoredMapping() && imap[56]==199 && imap[49]==6 && imap[7]==399 && imap[0]==-1);
   assert(mapListLen==1 && mapFiles[0]=="8x8");
   initializePanelVisibility();
   for(auto& pixel:ledStorage) pixel.value=255;
   applyPanelVisibility();
-  for(int i=0;i<200;++i) assert(leds[i].value==(i==6 || i==199 ? 255 : 0));
+  for(int i=0;i<400;++i) assert(leds[i].value==(i==6 || i==199 || i==399 ? 255 : 0));
   delete[] imap; imap=nullptr;
   stored.map.x[0]=0; stored.map.y[0]=0;
   assert(!stored.valid()); // reject corrupted duplicate coordinates
   assert(!loadStoredMapping() && imap==nullptr);
+  // Version-1 bytes retain all addresses on A, with B initially unmapped.
+  static_assert(sizeof(PanelLegacyMapRecord)==808,"legacy NVS layout changed");
+  legacyStorage=true; legacyStored.width=8; legacyStored.height=8;
+  for(int i=0;i<200;++i) legacyStored.x[i]=legacyStored.y[i]=-1;
+  legacyStored.x[199]=2; legacyStored.y[199]=3;
+  assert(loadStoredMapping() && getPixelNumber(2,3)==199 && getPixelNumber(0,0)==-1);
+  delete[] imap; imap=nullptr;
+  legacyStored.version=0; assert(!loadStoredMapping());
+  legacyStorage=false;
   needRestart=false;
   handleMappingCommand(R"({"op":"begin","width":8,"height":8})",1);
   handleMappingCommand(R"({"op":"chunk","rows":[[1,0,0],[2,0,0]]})",1);
@@ -147,5 +173,55 @@ int main() {
             cpp.write_text(source)
             subprocess.run(['g++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
                             '-I', str(FIRMWARE), '-I', str(ROOT / 'libraries/ArduinoJson/src'),
+                            str(cpp), '-o', str(binary)], check=True)
+            subprocess.run([str(binary)], check=True)
+
+    def test_s2_registers_independent_200_slot_outputs_on_gpio3_and_gpio9(self):
+        utility = (FIRMWARE / 'utility2.ino').read_text()
+        source = r'''
+#include <cassert>
+#include <cstdint>
+#include <cstddef>
+#define PANEL_PROFILE_S2_MINI 1
+#define LED_PIN 3
+#define LED_PIN_B 9
+#define LED_CHIP Chip
+#define F(x) x
+#define DEBUG(...) do {} while(false)
+#define DEBUGLN(...) do {} while(false)
+struct Chip {};
+struct CRGB { uint8_t r,g,b; };
+CRGB* leds=nullptr;
+int NUM_LEDS=400;
+struct { int getFreeHeap() { return 80000; } } ESP;
+void freeLeds() { delete[] leds; leds=nullptr; }
+void printMemoryDiff(int,int,const char*) {}
+constexpr int RGB=0,TypicalLEDStrip=0;
+struct Controller { Controller& setCorrection(int) { return *this; } } controller;
+struct Output { int pin,start,count; CRGB* data; } outputs[2];
+struct {
+  int count=0,rate=0;
+  template<typename C,int pin,int order> Controller& addLeds(CRGB* data,int start,int length) {
+    assert(count<2 && order==RGB);
+    outputs[count++]={pin,start,length,data}; return controller;
+  }
+  void setMaxRefreshRate(int value,bool) { rate=value; }
+} FastLED;
+'''
+        source += function(utility, 'void allocateLeds(')
+        source += r'''
+int main() {
+  allocateLeds(); assert(leds && FastLED.count==2 && FastLED.rate==40);
+  assert(outputs[0].pin==3 && outputs[0].start==0 && outputs[0].count==200);
+  assert(outputs[1].pin==9 && outputs[1].start==200 && outputs[1].count==200);
+  assert(outputs[0].data==leds && outputs[1].data==leds);
+  freeLeds();
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            cpp = Path(directory) / 'outputs.cpp'
+            binary = Path(directory) / 'outputs'
+            cpp.write_text(source)
+            subprocess.run(['g++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
                             str(cpp), '-o', str(binary)], check=True)
             subprocess.run([str(binary)], check=True)

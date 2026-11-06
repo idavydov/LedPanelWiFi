@@ -62,11 +62,17 @@ void irSendState(uint32_t client = 0) {
   state["effectName"] = getEffectName(thisMode);
   state["brightnessRaw"] = specialMode ? specialBrightness : deviceBrightness;
   state["indexMapActive"] = sMATRIX_TYPE == 2;
-  bool mapped[200] = {};
+  #if defined(PANEL_PROFILE_S2_MINI)
+  const int slotCount = PanelMapDraft::slots;
+  #else
+  const int slotCount = 200;
+  #endif
+  state["outputSlots"] = slotCount;
+  bool mapped[slotCount] = {};
   uint16_t mappedCount = 0;
   for (int y = 0; y < pHEIGHT; ++y) for (int x = 0; x < pWIDTH; ++x) {
     int index = getPixelNumber(x, y);
-    if (index >= 0 && index < 200 && !mapped[index]) { mapped[index] = true; ++mappedCount; }
+    if (index >= 0 && index < slotCount && !mapped[index]) { mapped[index] = true; ++mappedCount; }
   }
   state["mappedSlots"] = mappedCount;
   #if defined(PANEL_PROFILE_S2_MINI)

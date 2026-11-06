@@ -11,7 +11,7 @@
           @if (receiver.effectName) {
             <span>Selected effect: <strong>{{receiver.effectName}}</strong></span>
             <span>Brightness: {{receiver.brightnessRaw}} / 255</span>
-            <span>Addressing: {{receiver.indexMapActive ? 'index map' : 'segments'}} · {{receiver.mappedSlots}} / 200 mapped slots</span>
+            <span>Addressing: {{receiver.indexMapActive ? 'index map' : 'segments'}} · {{receiver.mappedSlots}} / {{receiver.outputSlots || 200}} mapped slots</span>
           }
           @if (receiver.effectBeforeReset) {
             <span>Effect before reset: <strong>{{receiver.effectBeforeReset}}</strong></span>

@@ -16,11 +16,11 @@ class FlickerTests(unittest.TestCase):
 #include <cassert>
 #include <cstdint>
 #include <cstring>
-int pWIDTH=8, pHEIGHT=8, NUM_LEDS=200, MC_FLICKER=1;
+int pWIDTH=8, pHEIGHT=8, NUM_LEDS=400, MC_FLICKER=1;
 bool loadingFlag=true;
 struct CHSV { int h,s,v; CHSV(int a,int b,int c):h(a),s(b),v(c){} };
 struct CRGB { int h=0,s=0,v=0; CRGB()=default; CRGB(CHSV c):h(c.h),s(c.s),v(c.v){} };
-CRGB leds[200];
+CRGB leds[400];
 int imap[64];
 struct { void clear() { for(auto& p:leds) p=CRGB(); } } FastLED;
 void drawPixelXY(int x,int y,CRGB c) {
@@ -47,18 +47,18 @@ int map8(int,int,int) { return 3; }
 int main() {
   // None of these coordinates live in the first 64 physical slots.
   for(int i=0;i<64;++i) imap[i]=100+i;
-  imap[0]=199; imap[17]=-1;
+  imap[0]=399; imap[17]=-1;
   // Simulate a paddle left by Arkanoid, plus an unmapped pixel.
   for(auto& p:leds) p.v=255;
   flickerRoutine();
-  assert(!loadingFlag && leds[199].v==1 && leds[199].h==163);
+  assert(!loadingFlag && leds[399].v==1 && leds[399].h==163);
   for(int i=1;i<64;++i) if(imap[i]>=0) {
     assert(leds[imap[i]].v==i+1 && leds[imap[i]].h==163-i);
   }
   assert(leds[0].v==0 && leds[100].v==0 && leds[117].v==0);
   // Every frame overwrites all mapped pixels, even after initialization.
-  leds[199].v=255;
-  flickerRoutine(); assert(leds[199].v==1);
+  leds[399].v=255;
+  flickerRoutine(); assert(leds[399].v==1);
 }
 '''
         with tempfile.TemporaryDirectory() as tmp:

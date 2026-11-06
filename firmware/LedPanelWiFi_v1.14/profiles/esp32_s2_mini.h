@@ -1,9 +1,9 @@
 #pragma once
 
-// Temporary 20 x 10 row-major canvas: 200 data slots, indices 0..199.
+// Temporary 20 x 10 row-major canvas on A. A/B each transmit 200 fixed slots.
 // Keep slots for removed factory-addressed LEDs; never compact the output.
 // FastLED RGB is the equivalent of NeoPixel NEO_RGB. WS2812B uses 800 kHz.
-// Use USB CDC on the S2 Mini; GPIO 3 is exclusively the LED data output.
+// Use USB CDC on the S2 Mini; LED data outputs are GPIO 3 (A) and 9 (B).
 
 #undef HOST_NAME
 #define HOST_NAME F("GlassPanel")
@@ -52,6 +52,7 @@
 
 #undef LED_PIN
 #define LED_PIN 3
+#define LED_PIN_B 9
 
 #undef DEVICE_TYPE
 #define DEVICE_TYPE 1
@@ -114,4 +115,4 @@
 #define DEFAULT_AP_PASS PSTR("")
 #define IR_RECEIVE_PIN 5
 
-static_assert(WIDTH * HEIGHT == 200, "This profile must transmit 200 LED slots.");
+static_assert(WIDTH * HEIGHT == 200, "Keep the starter canvas at 20x10; physical outputs are independent.");

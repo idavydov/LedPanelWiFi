@@ -12,7 +12,8 @@ button:disabled { cursor: default; }
 svg { width: 100%; min-width: 320px; display: block; }
 rect { fill: #7773; stroke: #8886; cursor: pointer; }
 rect.assigned { fill: #5b87ab; }
-rect.selected { fill: #d58123; }
+rect.assigned.string-b { fill: #9269ad; }
+rect.selected, rect.selected.string-b { fill: #d58123; }
 rect.target { stroke: #f2b93e; stroke-width: 2px; }
 text { fill: white; font: 8px sans-serif; text-anchor: middle; pointer-events: none; }
 .error { color: #da5b53; }
@@ -27,3 +28,6 @@ h3 { margin-top: 0; }
 .here { grid-area: 2 / 2; }
 .right { grid-area: 2 / 3; }
 .down { grid-area: 3 / 2; }
+.strings button[aria-pressed=true] { outline: 2px solid #d58123; outline-offset: 2px; font-weight: bold; }
+.string-a { border-bottom: 4px solid #5b87ab; }
+.string-b { border-bottom: 4px solid #9269ad; }

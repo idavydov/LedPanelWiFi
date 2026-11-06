@@ -303,7 +303,7 @@ bool loadIndexMap() {
       }
       imap[i] = (int16_t)(buf[1] << 8 | buf[0]);
       #if defined(PANEL_PROFILE_S2_MINI)
-      if (imap[i] < -1 || imap[i] >= 200) { isLoaded = false; break; }
+      if (imap[i] < -1 || imap[i] >= PanelMapDraft::slots) { isLoaded = false; break; }
       #endif
     }    
 

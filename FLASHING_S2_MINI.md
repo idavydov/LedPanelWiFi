@@ -1,10 +1,10 @@
 # ESP32-S2 Mini first flash
 
 The `esp32_s2_mini` environment targets a LOLIN/WEMOS S2 Mini with 4 MiB flash.
-It uses GPIO 3, WS2812-compatible 800 kHz output, and FastLED `RGB` (NeoPixel
-`NEO_RGB`). The temporary canvas is 20 × 10, parallel rows from the bottom left:
-`slot = y * 20 + x + 1`. It transmits all 200 slots, including any missing
-factory-addressed LEDs. The final slot is index 199 at `(19, 9)`.
+It uses GPIO 3 (string A) and GPIO 9 (string B), WS2812-compatible 800 kHz output,
+and FastLED `RGB` (NeoPixel `NEO_RGB`). Both outputs always transmit 200 factory
+slots, including missing LEDs. The temporary canvas is 20 × 10 on A, parallel
+rows from the bottom left: `slot = y * 20 + x + 1`. B stays dark until mapped.
 
 Optional peripherals, weather requests, and E1.31 are disabled. Brightness
 defaults to 3/255 (about 1%). OTA remains enabled with administrator authentication.
@@ -38,8 +38,7 @@ appears, hold BOOT, tap RESET, release BOOT, and upload to that recovery port.
 
 Upload both on the first flash. Later firmware-only changes need just `upload`;
 run `uploadfs` again only when the web assets change, since it replaces existing
-files. Existing EEPROM settings can override this profile; check GPIO 3,
-RGB, and 200 slots in the UI if this board previously ran this project. Do not
+files. The two LED outputs are fixed to GPIO 3/9, RGB, and 200 slots each. Do not
 erase a configured device without preserving anything you need.
 
 ## First boot
@@ -53,7 +52,7 @@ Sign in again after a device restart or 12 hours; Settings → Other → Sign ou
 ends the browser session. Your existing administrator and OTA password stays the same.
 
 Later, adjust the canvas and index map to match the LEDs on the glass. Retain
-factory slot numbers and the 200-slot output; removing an LED does not renumber
+factory slot numbers and the 200-slot output on each string; removing an LED does not renumber
 the others.
 
 ## Index map
@@ -68,7 +67,7 @@ For the older offline workflow, create a CSV with 10 rows and 20 columns, top ro
 Each cell is a zero-based factory slot index (`0`..`199`), or `-1` for an empty
 position. Slot 200 is index `199`; removing LEDs never shifts these numbers.
 The offline generator uses a 20×10 canvas. The browser mapper supports other
-canvas dimensions while retaining the 200-slot physical output.
+canvas dimensions while retaining 200 physical slots on each output.
 
 ```sh
 python3 tools/make_index_map.py --csv /path/to/layout.csv
@@ -83,8 +82,9 @@ little-endian indices; renaming a CSV to `.map` does not work.
 ### Identify LEDs and map a shape
 
 Install both updated firmware and UI over OTA, then open Settings → Matrix →
-LED position mapper. Use factory slot IDs **1–200**, with **(0,0) at the bottom
-left**. Choose a slot and press Light this LED: only that LED lights in white at
+LED position mapper. Select **A (GPIO3)** or **B (GPIO9)** and a factory slot
+**1–200**, with **(0,0) at the bottom left**. Choose a slot and press Light this
+LED: both strings clear and only that LED lights in white at
 about 1%. Previous/Next changes the lit slot; Skip & next omits missing slots.
 Identification stops after closing/disconnecting the page (10-second timeout).
 
@@ -92,27 +92,29 @@ Enter X/Y, or tap a preview cell to select them, then use Place here & next.
 Enable keyboard in Walk the string to light the selected slot and focus the
 assignment box. Enter places the first LED at the chosen coordinates; arrow
 keys place each subsequent LED one cell from the previous position and advance
-the factory ID. Up increases Y. `+`/`-` change only the ID, preserving the anchor
+the factory ID. Up increases Y. `A`/`B` switch strings, remembering each string's
+selected ID and keeping the shared coordinate anchor. `+`/`-` change only the active ID, preserving the anchor
 for skipped LEDs. Held keys do not repeat; Escape pauses shortcuts. Shortcuts
 do not capture typing in inputs. The mouse direction pad performs the same
 placements, and Undo last step restores the prior draft, ID, and anchor.
 Collisions and canvas boundaries do not advance the ID. Slot 200 pauses keyboard
 assignment. Changes remain a draft until Save & restart panel.
 
-Text import/export uses explicit IDs; omitted IDs stay skipped, and unused canvas
-cells are holes:
+Text import/export uses string-prefixed IDs; omitted IDs stay skipped, and unused
+canvas cells are holes. Old plain IDs and saved maps load as A without renumbering:
 
 ```text
-7:0,1
-8:0,2
-200:5,8
+A7:0,1
+B7:0,2
+A200:5,8
 ```
 
 Dimensions are 8–64 per axis, with at most 2048 cells; pad smaller shapes with
-empty cells. Duplicate IDs/coordinates and out-of-range values are rejected.
+empty cells. IDs must be unique within each string; coordinates must be unique
+across both strings. Clicking a mapped cell selects its string and ID.
 Save & restart panel persists the active layout in NVS, so it survives future
 firmware/filesystem OTA updates. Keep an exported text copy as a backup. Saving
-or editing a map never renumbers the 200 transmitted slots. After reconnection,
+or editing a map never renumbers either string's 200 transmitted slots. After reconnection,
 Load active map reads the actual addressing for verification.
 Normal output masks omitted slots to black, including effects that fill the raw
 LED buffer. Light this LED intentionally bypasses that mask for identifying a
