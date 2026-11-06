@@ -85,7 +85,18 @@ left**. Choose a slot and press Light this LED: only that LED lights in white at
 about 1%. Previous/Next changes the lit slot; Skip & next omits missing slots.
 Identification stops after closing/disconnecting the page (10-second timeout).
 
-Enter X/Y, or tap a preview cell to select them, then use Assign & next. Text
+Enter X/Y, or tap a preview cell to select them, then use Place here & next.
+Enable keyboard in Walk the string to light the selected slot and focus the
+assignment box. Enter places the first LED at the chosen coordinates; arrow
+keys place each subsequent LED one cell from the previous position and advance
+the factory ID. Up increases Y. `+`/`-` change only the ID, preserving the anchor
+for skipped LEDs. Held keys do not repeat; Escape pauses shortcuts. Shortcuts
+do not capture typing in inputs. The mouse direction pad performs the same
+placements, and Undo last step restores the prior draft, ID, and anchor.
+Collisions and canvas boundaries do not advance the ID. Slot 200 pauses keyboard
+assignment. Changes remain a draft until Save & restart panel.
+
+Text
 import/export uses explicit IDs; omitted IDs stay skipped, and unused canvas
 cells are holes:
 

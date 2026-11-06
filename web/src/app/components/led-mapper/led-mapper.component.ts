@@ -14,6 +14,8 @@ export class LedMapperComponent extends Base implements OnInit, OnDestroy {
   text = ''; entries: LedPosition[] = []; error = ''; status = '';
   identifying = false; ready = false; busy = false; dirty = false;
   cells: {x: number; y: number; id?: number}[] = [];
+  keyboardEnabled = false;
+  history: {text: string; slot: number; x: number; y: number}[] = [];
   private pending: LedPosition[] = [];
   private offset = 0;
   private awaiting = '';
@@ -48,6 +50,7 @@ export class LedMapperComponent extends Base implements OnInit, OnDestroy {
       this.ready = false;
       if (connected) this.send({op: 'state'});
       else {
+        this.keyboardEnabled = false;
         this.identifying = false;
         if (this.busy) { this.busy = false; this.error = 'Connection lost while saving. Reload the active map to check whether it was saved.'; }
       }
@@ -74,7 +77,10 @@ export class LedMapperComponent extends Base implements OnInit, OnDestroy {
       this.cells.push({x, y, id: positions.get(`${x},${y}`)});
   }
 
-  edit() { this.dirty = true; this.validate(); }
+  edit(clearHistory = true) {
+    if (clearHistory) this.history = [];
+    this.dirty = true; this.validate();
+  }
   identify() {
     if (!this.ready || !this.socket.isConnected || !Number.isInteger(this.slot) || this.slot < 1 || this.slot > 200) return;
     this.identifying = true; this.send({op: 'identify', id: this.slot});
@@ -86,23 +92,91 @@ export class LedMapperComponent extends Base implements OnInit, OnDestroy {
     if (entry) { this.x = entry.x; this.y = entry.y; }
     if (this.identifying) this.identify();
   }
+  stepSlot(delta: number) {
+    // Skipping factory IDs must not move the placement anchor.
+    const x = this.x, y = this.y;
+    this.selectSlot(this.slot + delta);
+    this.x = x; this.y = y;
+  }
+  setKeyboard(enabled: boolean, panel: HTMLElement) {
+    if (enabled && (!this.ready || !this.socket.isConnected || this.busy || this.error)) return;
+    this.keyboardEnabled = enabled;
+    if (enabled) {
+      this.identify(); panel.focus();
+      this.status = 'Keyboard ready. Enter places here; arrows place one cell away and advance the slot.';
+    }
+  }
+  onKeydown(event: KeyboardEvent) {
+    if (!this.keyboardEnabled || this.busy || !this.ready || !this.socket.isConnected ||
+        event.ctrlKey || event.metaKey || event.altKey ||
+        (event.target as HTMLElement)?.closest('input, textarea, select, [contenteditable]') ||
+        (event.key === 'Enter' && (event.target as HTMLElement)?.closest('button'))) return;
+    const directions: Record<string, [number, number]> = {
+      ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1],
+    };
+    if (!directions[event.key] && !['+', '=', '-', '_', 'Enter', 'Escape'].includes(event.key)) return;
+    event.preventDefault();
+    if (event.repeat) return;
+    if (directions[event.key]) this.moveAndAssign(...directions[event.key]);
+    else if (event.key === '+' || event.key === '=') this.stepSlot(1);
+    else if (event.key === '-' || event.key === '_') this.stepSlot(-1);
+    else if (event.key === 'Enter') this.assign(true);
+    else this.keyboardEnabled = false;
+  }
+  moveAndAssign(dx: number, dy: number) {
+    if (this.busy || !this.ready || !this.socket.isConnected || this.error) return;
+    const x = this.x, y = this.y;
+    const nextX = x + dx, nextY = y + dy;
+    if (nextX < 0 || nextY < 0 || nextX >= this.width || nextY >= this.height) {
+      this.status = 'Outside the canvas. The slot has not advanced.'; return;
+    }
+    this.x = nextX; this.y = nextY;
+    if (!this.assign(true)) { this.x = x; this.y = y; }
+    else {
+      const previous = this.history[this.history.length - 1];
+      previous.x = x; previous.y = y;
+    }
+  }
   assign(next = false) {
-    if (this.error) return;
+    if (this.error || this.busy || !this.ready || !this.socket.isConnected) return false;
     const entries = [...this.entries.filter(item => item.id !== this.slot), {id: this.slot, x: this.x, y: this.y}];
     try {
       const text = formatLedPositions(entries);
       parseLedPositions(text, this.width, this.height);
-      this.text = text; this.edit();
-      if (next) this.selectSlot(this.slot + 1);
-    } catch (error) { this.status = (error as Error).message; }
+      this.history.push({text: this.text, slot: this.slot, x: this.x, y: this.y});
+      this.text = text; this.edit(false);
+      this.status = `Assigned slot ${this.slot} to (${this.x},${this.y}).`;
+      if (next) {
+        this.identifying = true;
+        if (this.slot < 200) this.stepSlot(1);
+        else {
+          this.keyboardEnabled = false; this.identify();
+          this.status += ' Reached slot 200; assignment paused.';
+        }
+      }
+      return true;
+    } catch (error) { this.status = (error as Error).message; return false; }
+  }
+  undo() {
+    if (this.busy || !this.socket.isConnected) return;
+    const previous = this.history.pop();
+    if (!previous) return;
+    this.text = previous.text; this.slot = previous.slot; this.x = previous.x; this.y = previous.y;
+    this.edit(false); if (this.identifying) this.identify();
+    this.status = `Undid assignment; slot ${this.slot} selected.`;
   }
   skip() {
-    if (this.error) return;
+    if (this.error || this.busy || !this.ready || !this.socket.isConnected) return;
+    this.history.push({text: this.text, slot: this.slot, x: this.x, y: this.y});
     this.text = formatLedPositions(this.entries.filter(item => item.id !== this.slot));
-    this.edit(); this.selectSlot(this.slot + 1);
+    this.edit(false); this.stepSlot(1);
   }
-  chooseCell(x: number, y: number) { this.x = x; this.y = y; }
+  chooseCell(x: number, y: number) {
+    if (this.busy || !this.ready || !this.socket.isConnected) return;
+    this.x = x; this.y = y;
+  }
   load() {
+    this.history = []; this.keyboardEnabled = false;
     this.dirty = false; this.status = 'Loading active map…';
     this.send({op: 'state'});
   }
@@ -116,6 +190,7 @@ export class LedMapperComponent extends Base implements OnInit, OnDestroy {
     const file = input.files?.[0];
     if (file) {
       if (file.size > 10000) { this.error = 'Position file is too large (maximum 10 KB).'; return; }
+      this.history = []; this.keyboardEnabled = false;
       this.text = await file.text(); this.edit();
     }
     input.value = '';

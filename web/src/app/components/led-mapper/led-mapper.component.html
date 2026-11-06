@@ -8,19 +8,45 @@
   </div>
   <p>Pad smaller shapes to at least 8×8. Up to 2048 cells; output always remains 200 slots.</p>
   <div class="controls">
-    <button type="button" (click)="selectSlot(slot - 1)" [disabled]="slot <= 1">Previous</button>
+    <button type="button" (click)="stepSlot(-1)" [disabled]="slot <= 1" aria-label="Previous factory slot">− Previous</button>
     <label>Slot <input type="number" min="1" max="200" [ngModel]="slot" (ngModelChange)="selectSlot($event)"></label>
-    <button type="button" (click)="selectSlot(slot + 1)" [disabled]="slot >= 200">Next</button>
+    <button type="button" (click)="stepSlot(1)" [disabled]="slot >= 200" aria-label="Next factory slot">Next +</button>
     <button type="button" (click)="identify()" [disabled]="!ready">Light this LED</button>
     <button type="button" (click)="stop()">Stop identifying</button>
   </div>
   <p>Identification lights only the selected slot in white at about 1%. If no LED lights, skip that slot.
     It stops automatically after disconnecting or closing this page.</p>
+  <section #assignmentPanel class="assignment" tabindex="0" (keydown)="onKeydown($event)"
+           aria-label="LED assignment controls" aria-describedby="assignment-help">
+  <h3>Walk the string</h3>
+  <p id="assignment-help">Choose the first slot and its X/Y position, then <b>Place here & next</b>.
+    Each arrow places the next LED one cell from the last position and advances its factory slot.
+    <b>+</b>/<b>−</b> change only the slot; <b>Enter</b> places here. Held keys do not repeat.</p>
+  <div class="controls">
+    <button type="button" (click)="setKeyboard(!keyboardEnabled, assignmentPanel)" [disabled]="!ready || !!error"
+            [attr.aria-pressed]="keyboardEnabled">{{keyboardEnabled ? 'Pause keyboard' : 'Enable keyboard'}}</button>
+    <button type="button" (click)="undo()" [disabled]="!history.length">Undo last step</button>
+  </div>
+  @if (keyboardEnabled) {
+    <p class="keyboard-hint">Keyboard enabled: click inside this box to focus it. Shortcuts leave text and number inputs alone.
+      Escape pauses keyboard assignment.</p>
+  }
+  <p class="current-position">Selected LED: <b>{{slot}}</b> · Placement anchor: <b>({{x}},{{y}})</b></p>
+  <div class="direction-pad" role="group" aria-label="Place selected LED next to the anchor and advance">
+    <button class="up" type="button" (click)="moveAndAssign(0, 1)" [disabled]="!ready || !!error || y >= height - 1"
+            aria-label="Place one cell up and advance">↑ Up</button>
+    <button class="left" type="button" (click)="moveAndAssign(-1, 0)" [disabled]="!ready || !!error || x <= 0"
+            aria-label="Place one cell left and advance">← Left</button>
+    <button class="here" type="button" (click)="assign(true)" [disabled]="!ready || !!error">Place here<br>& next</button>
+    <button class="right" type="button" (click)="moveAndAssign(1, 0)" [disabled]="!ready || !!error || x >= width - 1"
+            aria-label="Place one cell right and advance">Right →</button>
+    <button class="down" type="button" (click)="moveAndAssign(0, -1)" [disabled]="!ready || !!error || y <= 0"
+            aria-label="Place one cell down and advance">↓ Down</button>
+  </div>
   <div class="controls">
     <label>X <input type="number" min="0" [max]="width - 1" [(ngModel)]="x"></label>
     <label>Y <input type="number" min="0" [max]="height - 1" [(ngModel)]="y"></label>
     <button type="button" (click)="assign()" [disabled]="!!error">Assign</button>
-    <button type="button" (click)="assign(true)" [disabled]="!!error">Assign & next</button>
     <button type="button" (click)="skip()" [disabled]="!!error">Skip & next</button>
   </div>
   <div class="preview" role="group" aria-label="Shape preview; tap a cell to select its coordinates">
@@ -36,6 +62,7 @@
       }
     </svg>
   </div>
+  </section>
   <label class="positions">Positions (ID:x,y; one per line)
     <textarea [(ngModel)]="text" (ngModelChange)="edit()" rows="10" spellcheck="false" placeholder="7:0,1&#10;8:0,2&#10;200:5,8"></textarea>
   </label>

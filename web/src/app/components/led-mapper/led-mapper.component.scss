@@ -17,3 +17,13 @@ rect.target { stroke: #f2b93e; stroke-width: 2px; }
 text { fill: white; font: 8px sans-serif; text-anchor: middle; pointer-events: none; }
 .error { color: #da5b53; }
 .file input { max-width: 100%; }
+.assignment { border: 1px solid #8888; border-radius: 8px; padding: 12px; margin: 16px 0; }
+.assignment:focus-visible { outline: 3px solid #d58123; outline-offset: 3px; }
+h3 { margin-top: 0; }
+.keyboard-hint { padding: 8px; background: #d5812322; border-radius: 4px; }
+.direction-pad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; max-width: 340px; margin: 12px auto; }
+.up { grid-area: 1 / 2; }
+.left { grid-area: 2 / 1; }
+.here { grid-area: 2 / 2; }
+.right { grid-area: 2 / 3; }
+.down { grid-area: 3 / 2; }
