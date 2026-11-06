@@ -1,9 +1,16 @@
 // --------------- WEB-SERVER CALLBACK ----------------
 
 bool authenticateWebRequest(AsyncWebServerRequest *request) {
+  #if defined(PANEL_PROFILE_S2_MINI)
+  if (panelRequestAuthenticated(request)) return true;
+  if (request->method() == HTTP_GET) panelAuthRedirect(request, "/login", String());
+  else request->send(401, "text/plain", "Sign in required.");
+  return false;
+  #else
   if (request->authenticate(PANEL_ADMIN_USER, PANEL_ADMIN_PASSWORD)) return true;
   request->requestAuthentication();
   return false;
+  #endif
 }
 
 // Эта страница отображается, если по какой-то причине файловая система не активирована
@@ -218,9 +225,14 @@ void initWebSocket() {
     // callbacks copy bounded messages into this queue without waiting.
     pendingWebMessages = xQueueCreate(4, sizeof(PendingWebMessage*));
   #endif
-  ws.setAuthentication(PANEL_ADMIN_USER, PANEL_ADMIN_PASSWORD);
+  #if !defined(PANEL_PROFILE_S2_MINI)
+    ws.setAuthentication(PANEL_ADMIN_USER, PANEL_ADMIN_PASSWORD);
+  #endif
   // Prevent another website from using the browser's cached device credentials.
   ws.setFilter([](AsyncWebServerRequest *request) {
+    #if defined(PANEL_PROFILE_S2_MINI)
+    if (!panelRequestAuthenticated(request)) return false;
+    #endif
     if (!request->hasHeader("Origin")) return true; // Non-browser clients still require authentication.
     String origin = request->header("Origin");
     return origin == String("http://") + request->host() ||

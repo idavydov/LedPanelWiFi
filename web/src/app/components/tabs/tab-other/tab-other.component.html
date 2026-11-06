@@ -139,4 +139,9 @@
     </div>
   </fieldset>
 
+  @if (managementService.state.controller === 'ESP32 S2') {
+    <form ngNoForm action="/logout" method="post">
+      <button mat-raised-button type="submit">Sign out</button>
+    </form>
+  }
 </div>

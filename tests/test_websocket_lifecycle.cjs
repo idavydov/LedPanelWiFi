@@ -9,6 +9,8 @@ const operators = require('../web/node_modules/rxjs/operators');
 
 function service() {
   const clock = {now: 0}, sockets = [], timers = new Map();
+  const redirects = [];
+  const http = {result: rx.EMPTY, get: () => http.result};
   const heartbeat = new rx.Subject();
   let timerId = 0;
   class Socket extends rx.Subject {
@@ -31,7 +33,7 @@ function service() {
   }
   const context = {
     exports: {}, Date: {now: () => clock.now}, console,
-    window: {location: {hostname: 'panel.local'}}, document: {body: {classList: {toggle() {}}}},
+    window: {location: {hostname: 'panel.local', assign: path => redirects.push(path)}}, document: {body: {classList: {toggle() {}}}},
     setTimeout(fn, delay) { const id = ++timerId; timers.set(id, {fn, delay}); return id; },
     clearTimeout(id) { timers.delete(id); },
     require(name) {
@@ -49,14 +51,24 @@ function service() {
   vm.runInNewContext(ts.transpileModule(source, {compilerOptions: {
     target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, experimentalDecorators: true
   }}).outputText, context);
-  const controller = new context.exports.WebsocketService({});
+  const controller = new context.exports.WebsocketService(http);
   function retry() {
     assert.equal(timers.size, 1);
     const [id, {fn, delay}] = timers.entries().next().value;
     assert.equal(delay, 5000); timers.delete(id); fn();
   }
-  return {controller, clock, sockets, timers, heartbeat, retry};
+  return {controller, clock, sockets, timers, heartbeat, retry, http, redirects};
 }
+
+test('expired browser sessions return to login while network failures keep reconnecting', () => {
+  const {sockets, http, redirects, retry} = service();
+  http.result = rx.throwError(() => ({status: 0}));
+  sockets[0].fail(); assert.deepEqual(redirects, []); retry();
+  http.result = rx.throwError(() => ({status: 404}));
+  sockets[1].fail(); assert.deepEqual(redirects, []); retry();
+  http.result = rx.throwError(() => ({status: 401}));
+  sockets[2].fail(); assert.deepEqual(redirects, ['/login']);
+});
 
 test('failed handshake retries once and ignores late close events from old sockets', () => {
   const {controller, sockets, timers, retry} = service();

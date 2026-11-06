@@ -132,7 +132,19 @@ export class WebsocketService extends Base implements IWebsocketService, OnDestr
     this.webSocketSubscription?.unsubscribe();
     this.webSocketSubscription = null;
     this.connectionState$.next(false);
+    this.checkAuthentication();
     this.reconnect();
+  }
+
+  private checkAuthentication(): void {
+    if (!environment.production || this.destroyed) return;
+    this.httpClient.get(`http://${this.host}/auth/status`, {responseType: 'text'})
+      .pipe(takeUntil(this.destroy$)).subscribe({
+        error: error => {
+          if (error.status === 401) window.location.assign('/login');
+          // Offline devices and older firmware keep the usual reconnect path.
+        },
+      });
   }
 
   private disconnect(): void {

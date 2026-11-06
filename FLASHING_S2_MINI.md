@@ -48,6 +48,9 @@ Join the open `PanelAP` network and open `http://192.168.4.1`. Choose an
 administrator password and enter your home Wi-Fi name and password. The panel
 saves them on the device and restarts; reconnect to home Wi-Fi and open
 `http://GlassPanel.local`, logging in as `admin` with your chosen password.
+The S2 profile uses a normal sign-in form with password-manager autofill hints.
+Sign in again after a device restart or 12 hours; Settings → Other → Sign out
+ends the browser session. Your existing administrator and OTA password stays the same.
 
 Later, adjust the canvas and index map to match the LEDs on the glass. Retain
 factory slot numbers and the 200-slot output; removing an LED does not renumber
@@ -96,8 +99,7 @@ placements, and Undo last step restores the prior draft, ID, and anchor.
 Collisions and canvas boundaries do not advance the ID. Slot 200 pauses keyboard
 assignment. Changes remain a draft until Save & restart panel.
 
-Text
-import/export uses explicit IDs; omitted IDs stay skipped, and unused canvas
+Text import/export uses explicit IDs; omitted IDs stay skipped, and unused canvas
 cells are holes:
 
 ```text

@@ -1007,10 +1007,17 @@ void setup() {
   #endif
 
   // Обработчики событий web-сервера
+  #if defined(PANEL_PROFILE_S2_MINI)
+  initPanelLogin();
+  #endif
   server.serveStatic("/", LittleFS, BASE_WEB)
     .setDefaultFile("index.html")
     .setCacheControl("private, no-store")
+    #if defined(PANEL_PROFILE_S2_MINI)
+    .setFilter([](AsyncWebServerRequest* request) { return panelRequestAuthenticated(request); });
+    #else
     .setAuthentication(PANEL_ADMIN_USER, PANEL_ADMIN_PASSWORD);
+    #endif
 
   server.onNotFound(handleNotFound);
 
@@ -1030,7 +1037,11 @@ void setup() {
     [](AsyncWebServerRequest * request, String filename, size_t index, uint8_t *data, size_t len, bool final) 
     {
       // Upload callbacks run before the HTTP handler. Reject before touching files.
+      #if defined(PANEL_PROFILE_S2_MINI)
+      if (!panelRequestAuthenticated(request)) return;
+      #else
       if (!request->authenticate(PANEL_ADMIN_USER, PANEL_ADMIN_PASSWORD)) return;
+      #endif
       static unsigned long startTimer;
       static File file;
       static bool error;      
